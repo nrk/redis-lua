@@ -6,8 +6,8 @@ require('socket')
 
 local protocol = {
     newline  = '\r\n', 
-    ok       = '+OK', 
-    err      = '-ERR', 
+    ok       = 'OK', 
+    err      = 'ERR', 
     null     = 'nil', 
 
     commands = {
@@ -20,7 +20,7 @@ local protocol = {
 
 -- ########################################################################### --
 
-local function _send(client, buffer)
+local function _write(client, buffer)
     local bufferType = type(buffer)
 
     if bufferType == 'string' then
@@ -57,6 +57,11 @@ local function _read_response(client, options)
     else
         return response_handler(client, res, options)
     end
+end
+
+local function _send(client, buffer, options)
+    _write(client, buffer)
+    return _read_response(client, options)
 end
 
 local function _get_generic(client, response, options)
@@ -121,37 +126,33 @@ protocol.prefixes = {
 -- ########################################################################### --
 
 local function raw_cmd(client, buffer)
-    _send(client, buffer)
+    return _send(client, buffer .. protocol.newline)
 end
 
 local function ping(client)
-    _send(client, protocol.commands.ping .. protocol.newline)
-    return _read_response(client)
+    return _send(client, protocol.commands.ping .. protocol.newline)
 end
 
 local function echo(client, value)
-    _send(client, {
+    return _send(client, {
         protocol.commands.echo, ' ', #str, protocol.newline,
         str, protocol.newline
     })
-    return _read_response(client)
 end
 
 local function _set(client, command, key, value)
-    _send(client, {
+    return _send(client, {
         command, ' ' , key, ' ', #value, protocol.newline, 
         value, protocol.newline
     })
 end
 
 local function set(client, key, value)
-    _set(client, protocol.commands.set, key, value)
-    return _read_response(client)
+    return _set(client, protocol.commands.set, key, value)
 end
 
 local function set_preserve(client, key, value)
-    _set(client, protocol.commands.setnx, key, value)
-    return _read_response(client)
+    return _set(client, protocol.commands.setnx, key, value)
 end
 
 -- ########################################################################### --
