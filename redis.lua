@@ -88,13 +88,19 @@ local function _get_list(client, response, options)
     local str = response:sub(2)
     local list_count = tonumber(str)    -- add a check if the returned value is indeed a number
 
-    list = {}
+    if list_count == -1 then 
+        return nil
+    else
+        list = {}
 
-    while list_count > 0 do
-        table.concat(list, _get_value(client, _receive(client), options))
+        if list_count > 0 then 
+            while list_count > 0 do
+                table.concat(list, _get_value(client, _receive(client), options))
+            end
+        end
+
+        return list
     end
-
-    return list
 end
 
 local function _get_number(client, response, options)
