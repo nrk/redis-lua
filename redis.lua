@@ -94,7 +94,7 @@ local function _read_multibulk(client, response, options)
         list = {}
 
         if list_count > 0 then 
-            while list_count > 0 do
+            for i = list_count, 1, -1 do
                 table.concat(list, _read_bulk(client, _receive(client), options))
             end
         end
