@@ -69,6 +69,7 @@ local function _read_line(client, response, options)
 end
 
 local function _read_error(client, response, options)
+    -- TODO: we should parse the reply to extract the error message
     return response:sub(2)
 end
 
@@ -86,7 +87,8 @@ end
 
 local function _read_multibulk(client, response, options)
     local str = response:sub(2)
-    local list_count = tonumber(str)    -- add a check if the returned value is indeed a number
+    -- TODO: add a check if the returned value is indeed a number
+    local list_count = tonumber(str)
 
     if list_count == -1 then 
         return nil
@@ -171,13 +173,11 @@ function connect(host, port)
     end
 
     return {
-        socket  = client_socket, 
-
-        raw_cmd = raw_cmd, 
-
-        ping    = ping,
-        echo    = echo, 
-        set     = set, 
+        socket       = client_socket, 
+        raw_cmd      = raw_cmd, 
+        ping         = ping,
+        echo         = echo, 
+        set          = set, 
         set_preserve = set_preserve, 
     }
 end
