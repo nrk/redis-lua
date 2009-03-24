@@ -64,15 +64,15 @@ local function _send(client, buffer, options)
     return _read_response(client, options)
 end
 
-local function _get_generic(client, response, options)
+local function _read_line(client, response, options)
     return response:sub(2)
 end
 
-local function _get_error(client, response, options)
+local function _read_error(client, response, options)
     return response:sub(2)
 end
 
-local function _get_value(client, response, options) 
+local function _read_bulk(client, response, options) 
     local str = response:sub(2)
     local len = tonumber(str)
 
@@ -84,7 +84,7 @@ local function _get_value(client, response, options)
     end
 end
 
-local function _get_list(client, response, options)
+local function _read_multibulk(client, response, options)
     local str = response:sub(2)
     local list_count = tonumber(str)    -- add a check if the returned value is indeed a number
 
@@ -95,7 +95,7 @@ local function _get_list(client, response, options)
 
         if list_count > 0 then 
             while list_count > 0 do
-                table.concat(list, _get_value(client, _receive(client), options))
+                table.concat(list, _read_bulk(client, _receive(client), options))
             end
         end
 
@@ -103,7 +103,7 @@ local function _get_list(client, response, options)
     end
 end
 
-local function _get_number(client, response, options)
+local function _read_number(client, response, options)
     local res = response:sub(2)
     local number = tonumber(res)
 
@@ -122,11 +122,11 @@ end
 -- ########################################################################### --
 
 protocol.prefixes = {
-    ['+'] = _get_generic, 
-    ['-'] = _get_error, 
-    ['$'] = _get_value, 
-    ['*'] = _get_list, 
-    [':'] = _get_number, 
+    ['+'] = _read_line, 
+    ['-'] = _read_error, 
+    ['$'] = _read_bulk, 
+    ['*'] = _read_multibulk, 
+    [':'] = _read_number, 
 }
 
 -- ########################################################################### --
