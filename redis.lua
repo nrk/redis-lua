@@ -77,6 +77,8 @@ local function _read_bulk(client, response, options)
     local str = response:sub(2)
     local len = tonumber(str)
 
+    -- TODO: when len == -1 then the function should return nil
+
     if not len then 
         error('Cannot parse ' .. str .. ' as data length.')
     else
@@ -141,7 +143,7 @@ local function ping(client)
     return _send(client, protocol.commands.ping .. protocol.newline)
 end
 
-local function echo(client, value)
+local function echo(client, str)
     return _send(client, {
         protocol.commands.echo, ' ', #str, protocol.newline,
         str, protocol.newline
