@@ -94,8 +94,13 @@ local function _read_line(client, response, options)
 end
 
 local function _read_error(client, response, options)
-    -- TODO: we should parse the reply to extract the error message
-    return response:sub(2)
+    local err_line = response:sub(2)
+
+    if err_line:sub(1, 3) == protocol.err then
+        error(err_line:sub(5))
+    else
+        error(err_line)
+    end
 end
 
 local function _read_bulk(client, response, options) 
