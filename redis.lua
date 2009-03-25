@@ -2,7 +2,7 @@ module('Redis', package.seeall)
 
 require('socket')
 
--- ########################################################################### --
+-- ############################################################################
 
 local protocol = {
     newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil', 
@@ -12,9 +12,9 @@ local protocol = {
         quit = 'QUIT', 
 
         -- commands operating on string values
-        set = 'SET', get = 'GET', mget = 'MGET', setnx = 'SETNX', incr = 'INCR', 
-        incrby = 'INCRBY', decr = 'DECR', decrby = 'DECRBY', exists = 'EXISTS', 
-        del = 'DEL', type = 'TYPE', 
+        set = 'SET', get = 'GET', mget = 'MGET', setnx = 'SETNX', 
+        incr = 'INCR', incrby = 'INCRBY', decr = 'DECR', decrby = 'DECRBY', 
+        exists = 'EXISTS', del = 'DEL', type = 'TYPE', 
 
         -- commands operating on the key space
         keys = 'KEYS', randomkey = 'RANDOMKEY', rename = 'RENAME', 
@@ -30,20 +30,22 @@ local protocol = {
         sinter = 'SINTER', sinterstore = 'SINTERSTORE', smembers = 'SMEMBERS',
 
         -- multiple databases handling commands
-        select = 'SELECT', move = 'MOVE', flushdb = 'FLUSHDB', flushall = 'FLUSHALL', 
+        select = 'SELECT', move = 'MOVE', flushdb = 'FLUSHDB', 
+        flushall = 'FLUSHALL', 
 
         -- sorting
         sort = 'SORT', 
 
         -- persistence control commands
-        save = 'SAVE', bgsave = 'BGSAVE', lastsave = 'LASTSAVE', shutdown = 'SHUTDOWN', 
+        save = 'SAVE', bgsave = 'BGSAVE', lastsave = 'LASTSAVE', 
+        shutdown = 'SHUTDOWN', 
 
         -- remote server control commands
         info = 'INFO', ping = 'PING', echo = 'ECHO', 
     }, 
 }
 
--- ########################################################################### --
+-- ############################################################################
 
 local function toboolean(value)
     -- plain and simple
@@ -57,12 +59,14 @@ end
 local function _read(client, len)
     if len == nil then len = '*l' end
     local line, err = client.socket:receive(len)
-    if not err then return line end
+    if not err then return line else error('Connection error: ' .. err) end
 end
 
--- ########################################################################### --
+-- ############################################################################
 
 local function _read_response(client, options)
+    if options and options.close == true then return end
+
     local res    = _read(client)
     local prefix = res:sub(1, -#res)
     local response_handler = protocol.prefixes[prefix]
@@ -110,7 +114,9 @@ local function _send_inline(client, command, args, options)
 end
 
 local function _send_bulk(client, command, args, data, options)
-    return _send_raw(client, { command, ' ', #data, protocol.newline, data, protocol.newline })
+    return _send_raw(client, 
+        { command, ' ', #data, protocol.newline, data, protocol.newline }
+    )
 end
 
 
@@ -162,7 +168,7 @@ local function _read_multibulk(client, response, options)
     end
 end
 
-local function _read_number(client, response, options)
+local function _read_integer(client, response, options)
     local res = response:sub(2)
     local number = tonumber(res)
 
@@ -177,18 +183,17 @@ local function _read_number(client, response, options)
     return number
 end
 
-
--- ########################################################################### --
+-- ############################################################################
 
 protocol.prefixes = {
     ['+'] = _read_line, 
     ['-'] = _read_error, 
     ['$'] = _read_bulk, 
     ['*'] = _read_multibulk, 
-    [':'] = _read_number, 
+    [':'] = _read_integer, 
 }
 
--- ########################################################################### --
+-- ############################################################################
 
 local function raw_cmd(client, buffer)
     return _send_raw(client, buffer .. protocol.newline)
@@ -259,10 +264,15 @@ local function type(client, key)
 end
 
 local function keys(client, pattern)
+    -- TODO: should return an array of keys (split the string by " ")
     return _send_inline(client, protocol.commands.keys, pattern)
 end
 
--- ########################################################################### --
+local function quit(client)
+    _send_inline(client, protocol.commands.quit, nil, {close = true})
+end
+
+-- ############################################################################
 
 function connect(host, port)
     local client_socket = socket.connect(host, port)
@@ -285,7 +295,8 @@ function connect(host, port)
         decr_by      = decr_by, 
         exists       = exists, 
         delete       = delete, 
-        type       = type, 
+        type         = type, 
+        quit         = quit, 
         keys         = keys, 
         set_preserve = set_preserve, 
     }
