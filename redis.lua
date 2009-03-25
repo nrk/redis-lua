@@ -102,11 +102,10 @@ local function _read_bulk(client, response, options)
     local str = response:sub(2)
     local len = tonumber(str)
 
-    -- TODO: when len == -1 then the function should return nil
-
     if not len then 
         error('Cannot parse ' .. str .. ' as data length.')
     else
+        if len == -1 then return nil end
         local data, err = client.socket:receive(len + 2)
         if not err then return data:sub(1, -3) end
     end
@@ -190,6 +189,10 @@ local function set_preserve(client, key, value)
     return _set(client, protocol.commands.setnx, key, value)
 end
 
+local function get(client, key)
+    return _send(client, protocol.commands.get .. ' ' .. key .. protocol.newline)
+end
+
 -- ########################################################################### --
 
 function connect(host, port)
@@ -205,6 +208,7 @@ function connect(host, port)
         ping         = ping,
         echo         = echo, 
         set          = set, 
+        get          = get, 
         set_preserve = set_preserve, 
     }
 end
