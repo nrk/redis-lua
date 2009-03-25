@@ -268,6 +268,49 @@ local function keys(client, pattern)
     return _send_inline(client, protocol.commands.keys, pattern)
 end
 
+local function select(client, index)
+    return _send_inline(client, protocol.commands.select, tostring(index))
+end
+
+local function move(client, key, dbindex)
+    return _send_inline(client, protocol.commands.move, { key, tostring(dbindex) })
+end
+
+local function flushdb(client)
+    return _send_inline(client, protocol.commands.flushdb)
+end
+
+local function flushall(client)
+    return _send_inline(client, protocol.commands.flushall)
+end
+
+local function save(client)
+    return _send_inline(client, protocol.commands.save)
+end
+
+local function bgsave(client)
+    return _send_inline(client, protocol.commands.bgsave)
+end
+
+local function lastsave(client)
+    return _send_inline(client, protocol.commands.lastsave)
+end
+
+local function shutdown(client) 
+    -- TODO: specs says that redis reply with a status code on error, 
+    -- but we are closing the connection soon after having sent the command.
+    _send_inline(client, protocol.commands.shutdown, nil, {close = true})
+end
+
+local function info(client)
+    local response, info = _send_inline(client, protocol.commands.info), {}
+    response:gsub('([^\r\n]*)\r\n', function(kv) 
+        local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
+        info[k] = v
+    end)
+    return info
+end
+
 local function quit(client)
     _send_inline(client, protocol.commands.quit, nil, {close = true})
 end
@@ -296,8 +339,17 @@ function connect(host, port)
         exists       = exists, 
         delete       = delete, 
         type         = type, 
-        quit         = quit, 
         keys         = keys, 
         set_preserve = set_preserve, 
+        select       = select, 
+        move         = move, 
+        flushdb      = flushdb, 
+        flushall     = flushall,
+        save         = save, 
+        bgsave       = bgsave, 
+        lastsave     = lastsave, 
+        shutdown     = shutdown, 
+        info         = info, 
+        quit         = quit, 
     }
 end
