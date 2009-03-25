@@ -118,17 +118,18 @@ end
 
 local function _read_multibulk(client, response, options)
     local str = response:sub(2)
+
     -- TODO: add a check if the returned value is indeed a number
     local list_count = tonumber(str)
 
     if list_count == -1 then 
         return nil
     else
-        list = {}
+        local list = {}
 
         if list_count > 0 then 
-            for i = list_count, 1, -1 do
-                table.concat(list, _read_bulk(client, _receive(client), options))
+            for i = 1, list_count do
+                table.insert(list, i, _read_bulk(client, _receive(client), options))
             end
         end
 
@@ -198,6 +199,12 @@ local function get(client, key)
     return _send(client, protocol.commands.get .. ' ' .. key .. protocol.newline)
 end
 
+local function mget(client, keys)
+    return _send(client, 
+        protocol.commands.mget .. ' ' .. table.concat(keys, ' ') .. protocol.newline
+    )
+end
+
 -- ########################################################################### --
 
 function connect(host, port)
@@ -214,6 +221,7 @@ function connect(host, port)
         echo         = echo, 
         set          = set, 
         get          = get, 
+        mget         = mget, 
         set_preserve = set_preserve, 
     }
 end
