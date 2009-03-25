@@ -6,43 +6,6 @@ require('socket')
 
 local protocol = {
     newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil', 
-
-    commands = {
-        -- connection handling
-        quit = 'QUIT', 
-
-        -- commands operating on string values
-        set = 'SET', get = 'GET', mget = 'MGET', setnx = 'SETNX', 
-        incr = 'INCR', incrby = 'INCRBY', decr = 'DECR', decrby = 'DECRBY', 
-        exists = 'EXISTS', del = 'DEL', type = 'TYPE', 
-
-        -- commands operating on the key space
-        keys = 'KEYS', randomkey = 'RANDOMKEY', rename = 'RENAME', 
-        renamenx = 'RENAMENX', dbsize = 'DBSIZE', 
-
-        -- commands operating on lists
-        rpush = 'RPUSH', lpush = 'LPUSH', llen = 'LLEN', lrange = 'LRANGE', 
-        ltrim = 'LTRIM', lindex = 'LINDEX', lset = 'LSET', lrem = 'LREM', 
-        lpop = 'LPOP', rpop = 'RPOP', 
-
-        -- commands operating on sets
-        sadd = 'SADD', srem = 'SREM', scard = 'SCARD', sismember = 'SISMEMBER', 
-        sinter = 'SINTER', sinterstore = 'SINTERSTORE', smembers = 'SMEMBERS',
-
-        -- multiple databases handling commands
-        select = 'SELECT', move = 'MOVE', flushdb = 'FLUSHDB', 
-        flushall = 'FLUSHALL', 
-
-        -- sorting
-        sort = 'SORT', 
-
-        -- persistence control commands
-        save = 'SAVE', bgsave = 'BGSAVE', lastsave = 'LASTSAVE', 
-        shutdown = 'SHUTDOWN', 
-
-        -- remote server control commands
-        info = 'INFO', ping = 'PING', echo = 'ECHO', 
-    }, 
 }
 
 -- ############################################################################
@@ -64,7 +27,7 @@ end
 
 -- ############################################################################
 
-local function _read_response(self, options)
+local function _read_response(self)
     if options and options.close == true then return end
 
     local res    = _read(self)
@@ -74,12 +37,12 @@ local function _read_response(self, options)
     if not response_handler then 
         error("Unknown response prefix: " .. prefix)
     else
-        return response_handler(self, res, options)
+        return response_handler(self, res)
     end
 end
 
 
-local function _send_raw(self, buffer, options)
+local function _send_raw(self, buffer)
     -- TODO: optimize
     local bufferType = type(buffer)
 
@@ -91,47 +54,51 @@ local function _send_raw(self, buffer, options)
         error('Argument error: ' .. bufferType)
     end
 
-    return _read_response(self, options)
+    return _read_response(self)
 end
 
-local function _send_inline(self, command, args, options)
-    if args == nil then
+local function _send_inline(self, command, ...)
+    if arg.n == 0 then
         _write(self, command .. protocol.newline)
     else
-        -- TODO: optimize
-        local argsType = type(args)
+        local arguments = arg
+        arguments.n = nil
 
-        if argsType == 'string' then
-            _write(self, command .. ' ' .. args .. protocol.newline)
-        elseif argsType == 'table' then
-            _write(self, command .. ' ' .. table.concat(args, ' ') .. protocol.newline)
-        else
-            error('Invalid type for arguments: ' .. argsType)
+        if #arguments > 0 then 
+            arguments = table.concat(arguments, ' ')
+        else 
+            arguments = ''
         end
+
+        _write(self, command .. ' ' .. arguments .. protocol.newline)
     end
 
-    return _read_response(self, options)
+    return _read_response(self)
 end
 
-local function _send_bulk(self, command, args, data, options)
-    -- TODO: optimize, and ensure that the type of data is string
-    if type(args) == 'table' then
-        args = table.concat(args, ' ')
-    elseif args == nil then
-        args = ' '
+local function _send_bulk(self, command, ...)
+    local arguments = arg
+    local data      = tostring(table.remove(arguments))
+    arguments.n = nil
+
+    -- TODO: optimize
+    if #arguments > 0 then 
+        arguments = table.concat(arguments)
+    else 
+        arguments = ''
     end
 
-    return _send_raw(self, 
-        { command, ' ', args, ' ', #data, protocol.newline, data, protocol.newline }, 
-    options)
+    return _send_raw(self, { 
+        command, ' ', arguments, ' ', #data, protocol.newline, data, protocol.newline 
+    })
 end
 
 
-local function _read_line(self, response, options)
+local function _read_line(self, response)
     return response:sub(2)
 end
 
-local function _read_error(self, response, options)
+local function _read_error(self, response)
     local err_line = response:sub(2)
 
     if err_line:sub(1, 3) == protocol.err then
@@ -141,7 +108,7 @@ local function _read_error(self, response, options)
     end
 end
 
-local function _read_bulk(self, response, options) 
+local function _read_bulk(self, response)
     local str = response:sub(2)
     local len = tonumber(str)
 
@@ -154,7 +121,7 @@ local function _read_bulk(self, response, options)
     end
 end
 
-local function _read_multibulk(self, response, options)
+local function _read_multibulk(self, response)
     local str = response:sub(2)
 
     -- TODO: add a check if the returned value is indeed a number
@@ -167,7 +134,7 @@ local function _read_multibulk(self, response, options)
 
         if list_count > 0 then 
             for i = 1, list_count do
-                table.insert(list, i, _read_bulk(self, _read(self), options))
+                table.insert(list, i, _read_bulk(self, _read(self)))
             end
         end
 
@@ -175,7 +142,7 @@ local function _read_multibulk(self, response, options)
     end
 end
 
-local function _read_integer(self, response, options)
+local function _read_integer(self, response)
     local res = response:sub(2)
     local number = tonumber(res)
 
@@ -202,199 +169,95 @@ protocol.prefixes = {
 
 -- ############################################################################
 
-local function raw_cmd(self, buffer)
-    return _send_raw(self, buffer .. protocol.newline)
-end
+local methods = {
+    -- miscellaneous commands
+    ping    = {
+        'PING', _send_inline, function(response) 
+            if response == 'PONG' then return true else return false end
+        end
+    }, 
+    echo    = { 'ECHO', _send_bulk }, 
 
-local function ping(self)
-    return _send_inline(self, protocol.commands.ping)
-end
+    -- connection handling
+    -- TODO: quit throws an error trying to read from a closed socket
+    quit    = { 'QUIT', _send_inline }, 
 
-local function echo(self, data)
-    return _send_bulk(self, protocol.commands.echo, nil, tostring(data))
-end
+    -- commands operating on string values
+    set             = { 'SET',    _send_bulk }, 
+    set_preserve    = { 'SETNX',  _send_bulk, toboolean }, 
+    get             = { 'GET',    _send_inline }, 
+    get_multiple    = { 'MGET',   _send_inline }, 
+    increment       = { 'INCR',   _send_inline }, 
+    increment_by    = { 'INCRBY', _send_inline }, 
+    decrement       = { 'DECR',   _send_inline }, 
+    decrement_by    = { 'DECRBY', _send_inline }, 
+    exists          = { 'EXISTS', _send_inline, toboolean }, 
+    delete          = { 'DEL',    _send_inline, toboolean }, 
+    type            = { 'TYPE',   _send_inline }, 
 
-local function set(self, key, value)
-    return _send_bulk(self, protocol.commands.set, { key }, tostring(value))
-end
+    -- commands operating on the key space
+    keys            = { 
+        'KEYS',  _send_inline, function(response) 
+            -- TODO: keys should return an array of keys (split the string by " ")
+            return response
+        end
+    },
+    random_key      = { 'RANDOMKEY', _send_inline }, 
+    rename          = { 'RENAME',    _send_inline }, 
+    rename_preserve = { 'RENAMENX',  _send_inline }, 
+    database_size   = { 'DBSIZE',    _send_inline }, 
 
-local function set_preserve(self, key, value)
-    return _send_bulk(self, protocol.commands.setnx, { key }, tostring(value))
-end
+    -- commands operating on lists
+    push_tail   = { 'RPUSH',     _send_bulk }, 
+    push_head   = { 'LPUSH',     _send_bulk }, 
+    list_length = { 'LLEN',      _send_inline }, 
+    list_range  = { 'LRANGE',    _send_inline }, 
+    list_trim   = { 'LTRIM',     _send_inline }, 
+    list_index  = { 'LINDEX',    _send_inline }, 
+    list_set    = { 'LSET',      _send_bulk }, 
+    list_remove = { 'LREM',      _send_bulk }, 
+    pop_first   = { 'LPOP',      _send_inline }, 
+    pop_last    = { 'RPOP',      _send_inline }, 
 
-local function get(self, key)
-    return _send_inline(self, protocol.commands.get, key)
-end
+    -- commands operating on sets
+    set_add                = { 'SADD',      _send_inline }, 
+    set_remove             = { 'SREM',      _send_inline }, 
+    set_cardinality        = { 'SCARD',     _send_inline }, 
+    set_is_member          = { 'SISMEMBER', _send_inline }, 
+    set_intersection       = { 'SINTER' ,   _send_inline }, 
+    set_intersection_store = { 'SINTER' ,   _send_inline }, 
+    set_members            = { 'SMEMBERS',  _send_inline }, 
 
-local function mget(self, keys)
-    return _send_inline(self, protocol.commands.mget, keys)
-end
+    -- multiple databases handling commands
+    select_database = { 'SELECT',   _send_inline }, 
+    move_key        = { 'MOVE',     _send_inline }, 
+    flush_database  = { 'FLUSHDB',  _send_inline }, 
+    flush_databases = { 'FLUSHALL', _send_inline }, 
 
-local function incr(self, key)
-    return _send_inline(self, protocol.commands.incr, key)
-end
+    -- sorting
+    -- TODO: sort parameters as a table?
+    sort    = { 'SORT', _send_inline }, 
 
-local function incr_by(self, key, step)
-    return _send_inline(self, protocol.commands.incrby, { key, step })
-end
-
-local function decr(self, key)
-    return _send_inline(self, protocol.commands.decr, key)
-end
-
-local function decr_by(self, key, step)
-    return _send_inline(self, protocol.commands.decrby, { key, step })
-end
-
-local function exists(self, key)
-    return toboolean(_send_inline(self, protocol.commands.exists, key))
-end
-
-local function delete(self, key)
-    return toboolean(_send_inline(self, protocol.commands.del, key))
-end
-
-local function type(self, key)
-    return _send_inline(self, protocol.commands.type, key)
-end
-
-local function keys(self, pattern)
-    -- TODO: should return an array of keys (split the string by " ")
-    return _send_inline(self, protocol.commands.keys, pattern)
-end
-
-local function randomkey(self, pattern)
-    return _send_inline(self, protocol.commands.randomkey)
-end
-
-local function rename(self, oldname, newname)
-    return _send_inline(self, protocol.commands.rename, { oldname, newname })
-end
-
-local function renamenx(self, oldname, newname)
-    return _send_inline(self, protocol.commands.renamenx, { oldname, newname })
-end
-
-local function dbsize(self, oldname, newname)
-    return _send_inline(self, protocol.commands.dbsize)
-end
-
-local function rpush(self, key, value)
-    return _send_bulk(self, protocol.commands.rpush, { key }, tostring(value))
-end
-
-local function lpush(self, key, value)
-    return _send_bulk(self, protocol.commands.lpush, { key }, tostring(value))
-end
-
-local function llen(self, key)
-    return _send_inline(self, protocol.commands.llen, key)
-end
-
-local function lrange(self, key, start, last)
-    return _send_inline(self, protocol.commands.lrange, { key, start, last })
-end
-
-local function ltrim(self, key, start, last)
-    return _send_inline(self, protocol.commands.ltrim, { key, start, last })
-end
-
-local function lindex(self, key, index)
-    return _send_inline(self, protocol.commands.lindex, { key, index })
-end
-
-local function lset(self, key, index, value)
-    return _send_bulk(self, protocol.commands.lset, { key, index }, tostring(value))
-end
-
-local function lrem(self, key, count, value)
-    return _send_bulk(self, protocol.commands.lrem, { key, count }, tostring(value))
-end
-
-local function lpop(self, key)
-    return _send_inline(self, protocol.commands.lpop, key)
-end
-
-local function rpop(self, key)
-    return _send_inline(self, protocol.commands.rpop, key)
-end
-
-local function sadd(self, key, member)
-    return _send_inline(self, protocol.commands.sadd, { key, member })
-end
-
-local function srem(self, key, member)
-    return _send_inline(self, protocol.commands.srem, { key, member })
-end
-
-local function scard(self, key)
-    return _send_inline(self, protocol.commands.scard, key)
-end
-
-local function sismember(self, key, member)
-    return _send_inline(self, protocol.commands.sismember, { key, member })
-end
-
-local function sinter(self, keys)
-    return _send_inline(self, protocol.commands.sinter, keys)
-end
-
-local function sinterstore(self, keys)
-    return _send_inline(self, protocol.commands.sinter, keys)
-end
-
-local function smembers(self, key)
-    return _send_inline(self, protocol.commands.smembers, key)
-end
-
-local function select(self, index)
-    return _send_inline(self, protocol.commands.select, tostring(index))
-end
-
-local function move(self, key, dbindex)
-    return _send_inline(self, protocol.commands.move, { key, dbindex })
-end
-
-local function flushdb(self)
-    return _send_inline(self, protocol.commands.flushdb)
-end
-
-local function flushall(self)
-    return _send_inline(self, protocol.commands.flushall)
-end
-
-local function save(self)
-    return _send_inline(self, protocol.commands.save)
-end
-
-local function bgsave(self)
-    return _send_inline(self, protocol.commands.bgsave)
-end
-
-local function lastsave(self)
-    return _send_inline(self, protocol.commands.lastsave)
-end
-
-local function shutdown(self) 
-    -- TODO: specs says that redis reply with a status code on error, 
+    -- persistence control commands
+    save            = { 'SAVE',     _send_inline }, 
+    background_save = { 'BGSAVE',   _send_inline }, 
+    last_save       = { 'LASTSAVE', _send_inline }, 
+    -- TODO: specs says that redis replies with a status code on error, 
     -- but we are closing the connection soon after having sent the command.
-    _send_inline(self, protocol.commands.shutdown, nil, {close = true})
-end
+    shutdown        = { 'SHUTDOWN', _send_inline }, 
 
-local function info(self)
-    local response, info = _send_inline(self, protocol.commands.info), {}
-    response:gsub('([^\r\n]*)\r\n', function(kv) 
-        local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
-        info[k] = v
-    end)
-    return info
-end
-
-local function quit(self)
-    _send_inline(self, protocol.commands.quit, nil, {close = true})
-end
-
--- ############################################################################
+    -- remote server control commands
+    info    = { 
+        'INFO',  _send_inline, function(response) 
+            local info = {}
+            response:gsub('([^\r\n]*)\r\n', function(kv) 
+                local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
+                info[k] = v
+            end)
+            return info
+        end
+    },
+}
 
 function connect(host, port)
     local client_socket = socket.connect(host, port)
@@ -403,54 +266,27 @@ function connect(host, port)
         error('Could not connect to ' .. host .. ':' .. port)
     end
 
-    -- TODO: way too ugly
-    return {
-        socket       = client_socket, 
-        raw_cmd      = raw_cmd, 
-        ping         = ping,
-        echo         = echo, 
-        set          = set, 
-        get          = get, 
-        mget         = mget, 
-        incr         = incr, 
-        incr_by      = incr_by, 
-        decr         = decr, 
-        decr_by      = decr_by, 
-        exists       = exists, 
-        delete       = delete, 
-        type         = type, 
-        keys         = keys, 
-        randomkey    = randomkey, 
-        rename       = rename, 
-        renamenx     = renamenx, 
-        dbsize       = dbsize, 
-        rpush        = rpush, 
-        lpush        = lpush, 
-        llen         = llen, 
-        lrange       = lrange, 
-        ltrim        = ltrim, 
-        lindex       = lindex, 
-        lset         = lset, 
-        lrem         = lrem, 
-        lpop         = lpop, 
-        rpop         = rpop, 
-        set_preserve = set_preserve, 
-        sadd         = sadd,
-        srem         = srem, 
-        scard        = scard, 
-        sismember    = sismember,
-        sinter       = sinter, 
-        sinterstore  = sinterstore, 
-        smembers     = smembers, 
-        select       = select, 
-        move         = move, 
-        flushdb      = flushdb, 
-        flushall     = flushall,
-        save         = save, 
-        bgsave       = bgsave, 
-        lastsave     = lastsave, 
-        shutdown     = shutdown, 
-        info         = info, 
-        quit         = quit, 
+    local redis_client = {
+        socket  = client_socket, 
+        raw_cmd = function(self, buffer)
+            return _send_raw(self, buffer .. protocol.newline)
+        end, 
+        test    = function(value) print(value) end, 
     }
+
+    return setmetatable(redis_client, {
+        __index = function(self, method)
+            if methods[method] ~= nil then
+                return function(self, ...) 
+                    -- TODO: method[2] should be set to _send_inline as default
+                    local response = methods[method][2](self, methods[method][1], ...)
+                    if methods[method][3] ~= nil then
+                        return methods[method][3](response)
+                    else
+                        return response
+                    end
+                end
+            end
+        end
+    })
 end
