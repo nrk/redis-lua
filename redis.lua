@@ -205,6 +205,30 @@ local function mget(client, keys)
     )
 end
 
+local function incr(client, key)
+    return _send(client, 
+        protocol.commands.incr .. ' ' .. key .. protocol.newline
+    )
+end
+
+local function incr_by(client, key, step)
+    return _send(client, 
+        protocol.commands.incrby .. ' ' .. key .. ' ' .. step .. protocol.newline
+    )
+end
+
+local function decr(client, key)
+    return _send(client, 
+        protocol.commands.decr .. ' ' .. key .. protocol.newline
+    )
+end
+
+local function decr_by(client, key, step)
+    return _send(client, 
+        protocol.commands.decrby .. ' ' .. key .. ' ' .. step .. protocol.newline
+    )
+end
+
 -- ########################################################################### --
 
 function connect(host, port)
@@ -222,6 +246,10 @@ function connect(host, port)
         set          = set, 
         get          = get, 
         mget         = mget, 
+        incr         = incr, 
+        incr_by      = incr_by, 
+        decr         = decr, 
+        decr_by      = decr_by, 
         set_preserve = set_preserve, 
     }
 end
