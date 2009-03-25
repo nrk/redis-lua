@@ -45,6 +45,11 @@ local protocol = {
 
 -- ########################################################################### --
 
+local function toboolean(value)
+    -- plain and simple
+    if value == 1 then return true else return false end
+end
+
 local function _write(client, buffer)
     local bufferType = type(buffer)
 
@@ -229,6 +234,20 @@ local function decr_by(client, key, step)
     )
 end
 
+local function exists(client, key)
+    local exists = _send(client, protocol.commands.exists .. ' ' .. key .. protocol.newline)
+    return toboolean(exists)
+end
+
+local function delete(client, key)
+    local deleted = _send(client, protocol.commands.del .. ' ' .. key .. protocol.newline)
+    return toboolean(deleted)
+end
+
+local function typeof(client, key)
+    return _send(client, protocol.commands.type .. ' ' .. key .. protocol.newline)
+end
+
 -- ########################################################################### --
 
 function connect(host, port)
@@ -250,6 +269,9 @@ function connect(host, port)
         incr_by      = incr_by, 
         decr         = decr, 
         decr_by      = decr_by, 
+        exists       = exists, 
+        delete       = delete, 
+        typeof       = typeof, 
         set_preserve = set_preserve, 
     }
 end
