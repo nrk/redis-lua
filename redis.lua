@@ -5,16 +5,41 @@ require('socket')
 -- ########################################################################### --
 
 local protocol = {
-    newline  = '\r\n', 
-    ok       = 'OK', 
-    err      = 'ERR', 
-    null     = 'nil', 
+    newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil', 
 
     commands = {
-        ping    = 'PING', 
-        echo    = 'ECHO', 
-        set     = 'SET', 
-        setnx   = 'SETNX', 
+        -- connection handling
+        quit = 'QUIT', 
+
+        -- commands operating on string values
+        set = 'SET', get = 'GET', mget = 'MGET', setnx = 'SETNX', incr = 'INCR', 
+        incrby = 'INCRBY', decr = 'DECR', decrby = 'DECRBY', exists = 'EXISTS', 
+        del = 'DEL', type = 'TYPE', 
+
+        -- commands operating on the key space
+        keys = 'KEYS', randomkey = 'RANDOMKEY', rename = 'RENAME', 
+        renamenx = 'RENAMENX', dbsize = 'DBSIZE', 
+
+        -- commands operating on lists
+        rpush = 'RPUSH', lpush = 'LPUSH', llen = 'LLEN', lrange = 'LRANGE', 
+        ltrim = 'LTRIM', lindex = 'LINDEX', lset = 'LSET', lrem = 'LREM', 
+        lpop = 'LPOP', rpop = 'RPOP', 
+
+        -- commands operating on sets
+        sadd = 'SADD', srem = 'SREM', scard = 'SCARD', sismember = 'SISMEMBER', 
+        sinter = 'SINTER', sinterstore = 'SINTERSTORE', smembers = 'SMEMBERS',
+
+        -- multiple databases handling commands
+        select = 'SELECT', move = 'MOVE', flushdb = 'FLUSHDB', flushall = 'FLUSHALL', 
+
+        -- sorting
+        sort = 'SORT', 
+
+        -- persistence control commands
+        save = 'SAVE', bgsave = 'BGSAVE', lastsave = 'LASTSAVE', shutdown = 'SHUTDOWN', 
+
+        -- remote server control commands
+        info = 'INFO', ping = 'PING', echo = 'ECHO', 
     }, 
 }
 
