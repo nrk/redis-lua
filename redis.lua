@@ -51,35 +51,20 @@ local function toboolean(value)
 end
 
 local function _write(client, buffer)
-    local bufferType = type(buffer)
-
-    if bufferType == 'string' then
-        client.socket:send(buffer)
-    elseif bufferType == 'table' then
-        for _, chunk in pairs(buffer) do
-            client.socket:send(chunk)
-        end
-    else
-        error('Argument error for buffer: ' .. bufferType)
-    end
+    client.socket:send(buffer)
 end
 
-local function _receive(client)
-    local line, err = client.socket:receive('*l')
+local function _read(client, len)
+    if len == nil then len = '*l' end
+    local line, err = client.socket:receive(len)
     if not err then return line end
-end
-
-local function _receive_len(client, len)
-    local buffer, err = client.socket:receive(len)
-    if not err then return buffer end
 end
 
 -- ########################################################################### --
 
 local function _read_response(client, options)
-    local res = _receive(client)
+    local res    = _read(client)
     local prefix = res:sub(1, -#res)
-
     local response_handler = protocol.prefixes[prefix]
 
     if not response_handler then 
@@ -89,10 +74,45 @@ local function _read_response(client, options)
     end
 end
 
-local function _send(client, buffer, options)
-    _write(client, buffer)
+
+local function _send_raw(client, buffer, options)
+    -- TODO: optimize
+    local bufferType = type(buffer)
+
+    if bufferType == 'string' then
+        _write(client, buffer)
+    elseif bufferType == 'table' then
+        _write(client, table.concat(buffer))
+    else
+        error('Argument error: ' .. bufferType)
+    end
+
     return _read_response(client, options)
 end
+
+local function _send_inline(client, command, args, options)
+    if args == nil then
+        _write(client, command .. protocol.newline)
+    else
+        -- TODO: optimize
+        local argsType = type(args)
+
+        if argsType == 'string' then
+            _write(client, command .. ' ' .. args .. protocol.newline)
+        elseif argsType == 'table' then
+            _write(client, command .. ' ' .. table.concat(args, ' ') .. protocol.newline)
+        else
+            error('Invalid type for arguments: ' .. argsType)
+        end
+    end
+
+    return _read_response(client, options)
+end
+
+local function _send_bulk(client, command, args, data, options)
+    return _send_raw(client, { command, ' ', #data, protocol.newline, data, protocol.newline })
+end
+
 
 local function _read_line(client, response, options)
     return response:sub(2)
@@ -116,8 +136,8 @@ local function _read_bulk(client, response, options)
         error('Cannot parse ' .. str .. ' as data length.')
     else
         if len == -1 then return nil end
-        local data, err = client.socket:receive(len + 2)
-        if not err then return data:sub(1, -3) end
+        local data = _read(client, len + 2)
+        return data:sub(1, -3);
     end
 end
 
@@ -134,7 +154,7 @@ local function _read_multibulk(client, response, options)
 
         if list_count > 0 then 
             for i = 1, list_count do
-                table.insert(list, i, _read_bulk(client, _receive(client), options))
+                table.insert(list, i, _read_bulk(client, _read(client), options))
             end
         end
 
@@ -171,22 +191,22 @@ protocol.prefixes = {
 -- ########################################################################### --
 
 local function raw_cmd(client, buffer)
-    return _send(client, buffer .. protocol.newline)
+    return _send_raw(client, buffer .. protocol.newline)
 end
 
 local function ping(client)
-    return _send(client, protocol.commands.ping .. protocol.newline)
+    return _send_inline(client, protocol.commands.ping)
 end
 
-local function echo(client, str)
-    return _send(client, {
-        protocol.commands.echo, ' ', #str, protocol.newline,
-        str, protocol.newline
+local function echo(client, data)
+    return _send_raw(client, {
+        protocol.commands.echo, ' ' , #data, protocol.newline, 
+        data, protocol.newline
     })
 end
 
 local function _set(client, command, key, value)
-    return _send(client, {
+    return _send_raw(client, {
         command, ' ' , key, ' ', #value, protocol.newline, 
         value, protocol.newline
     })
@@ -201,51 +221,45 @@ local function set_preserve(client, key, value)
 end
 
 local function get(client, key)
-    return _send(client, protocol.commands.get .. ' ' .. key .. protocol.newline)
+    return _send_inline(client, protocol.commands.get, key)
 end
 
 local function mget(client, keys)
-    return _send(client, 
-        protocol.commands.mget .. ' ' .. table.concat(keys, ' ') .. protocol.newline
-    )
+    return _send_inline(client, protocol.commands.mget, keys)
 end
 
 local function incr(client, key)
-    return _send(client, 
-        protocol.commands.incr .. ' ' .. key .. protocol.newline
-    )
+    return _send_inline(client, protocol.commands.incr, key)
 end
 
 local function incr_by(client, key, step)
-    return _send(client, 
-        protocol.commands.incrby .. ' ' .. key .. ' ' .. step .. protocol.newline
-    )
+    return _send_inline(client, protocol.commands.incrby, { key, step })
 end
 
 local function decr(client, key)
-    return _send(client, 
-        protocol.commands.decr .. ' ' .. key .. protocol.newline
-    )
+    return _send_inline(client, protocol.commands.decr, key)
 end
 
 local function decr_by(client, key, step)
-    return _send(client, 
-        protocol.commands.decrby .. ' ' .. key .. ' ' .. step .. protocol.newline
-    )
+    return _send_inline(client, protocol.commands.decrby, { key, step })
 end
 
 local function exists(client, key)
-    local exists = _send(client, protocol.commands.exists .. ' ' .. key .. protocol.newline)
+    local exists = _send_inline(client, protocol.commands.exists, key)
     return toboolean(exists)
 end
 
 local function delete(client, key)
-    local deleted = _send(client, protocol.commands.del .. ' ' .. key .. protocol.newline)
+    local deleted = _send_inline(client, protocol.commands.del, key)
     return toboolean(deleted)
 end
 
-local function typeof(client, key)
-    return _send(client, protocol.commands.type .. ' ' .. key .. protocol.newline)
+local function type(client, key)
+    return _send_inline(client, protocol.commands.type, key)
+end
+
+local function keys(client, pattern)
+    return _send_inline(client, protocol.commands.keys, pattern)
 end
 
 -- ########################################################################### --
@@ -271,7 +285,8 @@ function connect(host, port)
         decr_by      = decr_by, 
         exists       = exists, 
         delete       = delete, 
-        typeof       = typeof, 
+        type       = type, 
+        keys         = keys, 
         set_preserve = set_preserve, 
     }
 end
