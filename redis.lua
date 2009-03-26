@@ -177,6 +177,8 @@ local methods = {
         end
     }, 
     echo    = { 'ECHO', _send_bulk }, 
+    -- TODO: the server returns an empty -ERR on authentication failure
+    auth    = { 'AUTH' }, 
 
     -- connection handling
     quit    = { 'QUIT', function(self, command) 
