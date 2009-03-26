@@ -83,7 +83,7 @@ local function _send_bulk(self, command, ...)
 
     -- TODO: optimize
     if #arguments > 0 then 
-        arguments = table.concat(arguments)
+        arguments = table.concat(arguments, ' ')
     else 
         arguments = ''
     end
@@ -102,9 +102,9 @@ local function _read_error(self, response)
     local err_line = response:sub(2)
 
     if err_line:sub(1, 3) == protocol.err then
-        error(err_line:sub(5))
+        error("Redis error: " .. err_line:sub(5))
     else
-        error(err_line)
+        error("Redis error: " .. err_line)
     end
 end
 
@@ -218,10 +218,11 @@ local methods = {
     push_tail   = { 'RPUSH', _send_bulk }, 
     push_head   = { 'LPUSH', _send_bulk }, 
     list_length = { 'LLEN', _send_inline, function(response, key)
-            --[[ TODO: redis seems to return a -ERR when the specified 
-                       key does not hold a list value, but this behaviour 
-                       is not consistent with specs. Am I just missing 
-                       something? ]]
+            --[[ TODO: redis seems to return a -ERR when the specified key does 
+                       not hold a list value, but this behaviour is not 
+                       consistent with the specs docs. This might be due to the 
+                       -ERR response paradigm being new, which supersedes the 
+                       check for negative numbers to identify errors. ]]
             if response == -2 then 
                 error('Key ' .. key .. ' does not hold a list value')
             end
