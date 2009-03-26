@@ -200,8 +200,11 @@ local methods = {
     -- commands operating on the key space
     keys            = { 
         'KEYS',  _send_inline, function(response) 
-            -- TODO: keys should return an array of keys (split the string by " ")
-            return response
+            local keys = {}
+            response:gsub('%w+', function(key) 
+                table.insert(keys, key)
+            end)
+            return keys
         end
     },
     random_key      = { 'RANDOMKEY' }, 
