@@ -12,7 +12,7 @@ local protocol = {
 
 local function toboolean(value)
     -- plain and simple
-    if value == 1 then return true else return false end
+    return value == 1
 end
 
 local function _write(self, buffer)
@@ -180,20 +180,20 @@ local methods = {
 
     -- connection handling
     -- TODO: quit throws an error trying to read from a closed socket
-    quit    = { 'QUIT', _send_inline }, 
+    quit    = { 'QUIT' }, 
 
     -- commands operating on string values
-    set             = { 'SET',    _send_bulk }, 
-    set_preserve    = { 'SETNX',  _send_bulk, toboolean }, 
-    get             = { 'GET',    _send_inline }, 
-    get_multiple    = { 'MGET',   _send_inline }, 
-    increment       = { 'INCR',   _send_inline }, 
-    increment_by    = { 'INCRBY', _send_inline }, 
-    decrement       = { 'DECR',   _send_inline }, 
-    decrement_by    = { 'DECRBY', _send_inline }, 
+    set             = { 'SET', _send_bulk }, 
+    set_preserve    = { 'SETNX', _send_bulk, toboolean }, 
+    get             = { 'GET' }, 
+    get_multiple    = { 'MGET' }, 
+    increment       = { 'INCR' }, 
+    increment_by    = { 'INCRBY' }, 
+    decrement       = { 'DECR' }, 
+    decrement_by    = { 'DECRBY' }, 
     exists          = { 'EXISTS', _send_inline, toboolean }, 
-    delete          = { 'DEL',    _send_inline, toboolean }, 
-    type            = { 'TYPE',   _send_inline }, 
+    delete          = { 'DEL', _send_inline, toboolean }, 
+    type            = { 'TYPE' }, 
 
     -- commands operating on the key space
     keys            = { 
@@ -202,53 +202,53 @@ local methods = {
             return response
         end
     },
-    random_key      = { 'RANDOMKEY', _send_inline }, 
-    rename          = { 'RENAME',    _send_inline }, 
-    rename_preserve = { 'RENAMENX',  _send_inline }, 
-    database_size   = { 'DBSIZE',    _send_inline }, 
+    random_key      = { 'RANDOMKEY' }, 
+    rename          = { 'RENAME' }, 
+    rename_preserve = { 'RENAMENX' }, 
+    database_size   = { 'DBSIZE' }, 
 
     -- commands operating on lists
-    push_tail   = { 'RPUSH',     _send_bulk }, 
-    push_head   = { 'LPUSH',     _send_bulk }, 
-    list_length = { 'LLEN',      _send_inline }, 
-    list_range  = { 'LRANGE',    _send_inline }, 
-    list_trim   = { 'LTRIM',     _send_inline }, 
-    list_index  = { 'LINDEX',    _send_inline }, 
-    list_set    = { 'LSET',      _send_bulk }, 
-    list_remove = { 'LREM',      _send_bulk }, 
-    pop_first   = { 'LPOP',      _send_inline }, 
-    pop_last    = { 'RPOP',      _send_inline }, 
+    push_tail   = { 'RPUSH', _send_bulk }, 
+    push_head   = { 'LPUSH', _send_bulk }, 
+    list_length = { 'LLEN' }, 
+    list_range  = { 'LRANGE' }, 
+    list_trim   = { 'LTRIM' }, 
+    list_index  = { 'LINDEX' }, 
+    list_set    = { 'LSET', _send_bulk }, 
+    list_remove = { 'LREM', _send_bulk }, 
+    pop_first   = { 'LPOP' }, 
+    pop_last    = { 'RPOP' }, 
 
     -- commands operating on sets
-    set_add                = { 'SADD',      _send_inline }, 
-    set_remove             = { 'SREM',      _send_inline }, 
-    set_cardinality        = { 'SCARD',     _send_inline }, 
-    set_is_member          = { 'SISMEMBER', _send_inline }, 
-    set_intersection       = { 'SINTER' ,   _send_inline }, 
-    set_intersection_store = { 'SINTER' ,   _send_inline }, 
-    set_members            = { 'SMEMBERS',  _send_inline }, 
+    set_add                = { 'SADD' }, 
+    set_remove             = { 'SREM' }, 
+    set_cardinality        = { 'SCARD' }, 
+    set_is_member          = { 'SISMEMBER' }, 
+    set_intersection       = { 'SINTER' }, 
+    set_intersection_store = { 'SINTER' }, 
+    set_members            = { 'SMEMBERS' }, 
 
     -- multiple databases handling commands
-    select_database = { 'SELECT',   _send_inline }, 
-    move_key        = { 'MOVE',     _send_inline }, 
-    flush_database  = { 'FLUSHDB',  _send_inline }, 
-    flush_databases = { 'FLUSHALL', _send_inline }, 
+    select_database = { 'SELECT' }, 
+    move_key        = { 'MOVE' }, 
+    flush_database  = { 'FLUSHDB' }, 
+    flush_databases = { 'FLUSHALL' }, 
 
     -- sorting
     -- TODO: sort parameters as a table?
     sort    = { 'SORT', _send_inline }, 
 
     -- persistence control commands
-    save            = { 'SAVE',     _send_inline }, 
-    background_save = { 'BGSAVE',   _send_inline }, 
-    last_save       = { 'LASTSAVE', _send_inline }, 
+    save            = { 'SAVE' }, 
+    background_save = { 'BGSAVE' }, 
+    last_save       = { 'LASTSAVE' }, 
     -- TODO: specs says that redis replies with a status code on error, 
     -- but we are closing the connection soon after having sent the command.
-    shutdown        = { 'SHUTDOWN', _send_inline }, 
+    shutdown        = { 'SHUTDOWN' }, 
 
     -- remote server control commands
     info    = { 
-        'INFO',  _send_inline, function(response) 
+        'INFO', _send_inline, function(response) 
             local info = {}
             response:gsub('([^\r\n]*)\r\n', function(kv) 
                 local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
@@ -271,17 +271,20 @@ function connect(host, port)
         raw_cmd = function(self, buffer)
             return _send_raw(self, buffer .. protocol.newline)
         end, 
-        test    = function(value) print(value) end, 
     }
 
     return setmetatable(redis_client, {
         __index = function(self, method)
-            if methods[method] ~= nil then
+            local redis_meth = methods[method]
+            if redis_meth ~= nil then
                 return function(self, ...) 
-                    -- TODO: method[2] should be set to _send_inline as default
-                    local response = methods[method][2](self, methods[method][1], ...)
-                    if methods[method][3] ~= nil then
-                        return methods[method][3](response)
+                    if redis_meth[2] == nil then 
+                        table.insert(redis_meth, 2, _send_inline)
+                    end
+
+                    local response = redis_meth[2](self, methods[method][1], ...)
+                    if redis_meth[3] ~= nil then
+                        return redis_meth[3](response)
                     else
                         return response
                     end
