@@ -230,7 +230,7 @@ local methods = {
     set_cardinality        = { 'SCARD' }, 
     set_is_member          = { 'SISMEMBER' }, 
     set_intersection       = { 'SINTER' }, 
-    set_intersection_store = { 'SINTER' }, 
+    set_intersection_store = { 'SINTERSTORE' }, 
     set_members            = { 'SMEMBERS' }, 
 
     -- multiple databases handling commands
@@ -240,7 +240,15 @@ local methods = {
     flush_databases = { 'FLUSHALL' }, 
 
     -- sorting
-    -- TODO: sort parameters as a table?
+    --[[
+        TODO: should we pass sort parameters as a table? e.g: 
+                params = { 
+                    by    = 'weight_*', 
+                    get   = 'object_*', 
+                    limit = { 0, 10 },
+                    sort  = { 'desc', 'alpha' }
+                }
+    --]]
     sort    = { 'SORT' }, 
 
     -- persistence control commands
@@ -288,7 +296,7 @@ function connect(host, port)
                         table.insert(redis_meth, 2, _send_inline)
                     end
 
-                    local response = redis_meth[2](self, methods[method][1], ...)
+                    local response = redis_meth[2](self, redis_meth[1], ...)
                     if redis_meth[3] ~= nil then
                         return redis_meth[3](response)
                     else
