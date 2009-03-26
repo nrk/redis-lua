@@ -179,8 +179,10 @@ local methods = {
     echo    = { 'ECHO', _send_bulk }, 
 
     -- connection handling
-    -- TODO: quit throws an error trying to read from a closed socket
-    quit    = { 'QUIT' }, 
+    quit    = { 'QUIT', function(self, command) 
+            _write(self, command .. protocol.newline)
+        end
+    }, 
 
     -- commands operating on string values
     set             = { 'SET', _send_bulk }, 
@@ -236,15 +238,16 @@ local methods = {
 
     -- sorting
     -- TODO: sort parameters as a table?
-    sort    = { 'SORT', _send_inline }, 
+    sort    = { 'SORT' }, 
 
     -- persistence control commands
     save            = { 'SAVE' }, 
     background_save = { 'BGSAVE' }, 
     last_save       = { 'LASTSAVE' }, 
-    -- TODO: specs says that redis replies with a status code on error, 
-    -- but we are closing the connection soon after having sent the command.
-    shutdown        = { 'SHUTDOWN' }, 
+    shutdown        = { 'SHUTDOWN', function(self, command) 
+            _write(self, command .. protocol.newline)
+        end
+    }, 
 
     -- remote server control commands
     info    = { 
