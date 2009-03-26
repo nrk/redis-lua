@@ -1,6 +1,6 @@
 module('Redis', package.seeall)
 
-require('socket')
+require('socket')       -- requires LuaSocket as a dependency
 
 -- ############################################################################
 
@@ -11,12 +11,12 @@ local protocol = {
 -- ############################################################################
 
 local function toboolean(value)
-    -- plain and simple
     return value == 1
 end
 
 local function _write(self, buffer)
-    self.socket:send(buffer)
+    local _, err = self.socket:send(buffer)
+    if err then error(err) end
 end
 
 local function _read(self, len)
@@ -215,7 +215,17 @@ local methods = {
     -- commands operating on lists
     push_tail   = { 'RPUSH', _send_bulk }, 
     push_head   = { 'LPUSH', _send_bulk }, 
-    list_length = { 'LLEN' }, 
+    list_length = { 'LLEN', _send_inline, function(response, key)
+            --[[ TODO: redis seems to return a -ERR when the specified 
+                       key does not hold a list value, but this behaviour 
+                       is not consistent with specs. Am I just missing 
+                       something? ]]
+            if response == -2 then 
+                error('Key ' .. key .. ' does not hold a list value')
+            end
+            return response
+        end
+    }, 
     list_range  = { 'LRANGE' }, 
     list_trim   = { 'LTRIM' }, 
     list_index  = { 'LINDEX' }, 
@@ -290,15 +300,15 @@ function connect(host, port)
     return setmetatable(redis_client, {
         __index = function(self, method)
             local redis_meth = methods[method]
-            if redis_meth ~= nil then
+            if redis_meth then
                 return function(self, ...) 
-                    if redis_meth[2] == nil then 
+                    if not redis_meth[2] then 
                         table.insert(redis_meth, 2, _send_inline)
                     end
 
                     local response = redis_meth[2](self, redis_meth[1], ...)
-                    if redis_meth[3] ~= nil then
-                        return redis_meth[3](response)
+                    if redis_meth[3] then
+                        return redis_meth[3](response, ...)
                     else
                         return response
                     end
