@@ -10,13 +10,9 @@ local client_socket  = nil
 local redis_commands = {}
 local network, request, response, utils = {}, {}, {}, {}, {}
 
-local protocol = {
-    newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil', 
-}
+local protocol = { newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil' }
 
-local function toboolean(value)
-    return value == 1
-end
+local function toboolean(value) return value == 1 end
 
 local function load_methods(proto, methods)
     local redis = table.clone(proto)
@@ -233,6 +229,8 @@ redis_commands = {
     -- connection handling
     quit  = custom('QUIT', 
         function(command) 
+            -- let's fire and forget! the connection is closed as soon 
+            -- as the QUIT command is received by the server.
             network.write(command .. protocol.newline)
         end
     ), 
@@ -310,6 +308,8 @@ redis_commands = {
     last_save        = inline('LASTSAVE'), 
     shutdown         = custom('SHUTDOWN',
         function(command) 
+            -- let's fire and forget! the connection is closed as soon 
+            -- as the SHUTDOWN command is received by the server.
             network.write(command .. protocol.newline)
         end
     ), 
