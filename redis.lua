@@ -1,8 +1,10 @@
 local _G = _G
+local require, error, type = require, error, type
+local table, pairs, tostring, tonumber = table, pairs, tostring, tonumber
 
 module('Redis')
 
-local socket = _G.require('socket')       -- requires LuaSocket as a dependency
+local socket = require('socket')       -- requires LuaSocket as a dependency
 
 local client_socket  = nil
 local redis_commands = {}
@@ -17,8 +19,8 @@ local function toboolean(value)
 end
 
 local function load_methods(proto, methods)
-    local redis = _G.table.clone(proto)
-    for i, v in _G.pairs(methods) do redis[i] = v end
+    local redis = table.clone(proto)
+    for i, v in pairs(methods) do redis[i] = v end
     return redis
 end
 
@@ -26,13 +28,13 @@ end
 
 function network.write(buffer)
     local _, err = client_socket:send(buffer)
-    if err then _G.error(err) end
+    if err then error(err) end
 end
 
 function network.read(len)
     if len == nil then len = '*l' end
     local line, err = client_socket:receive(len)
-    if not err then return line else _G.error('Connection error: ' .. err) end
+    if not err then return line else error('Connection error: ' .. err) end
 end
 
 -- ############################################################################
@@ -45,7 +47,7 @@ function response.read()
     local response_handler = protocol.prefixes[prefix]
 
     if not response_handler then 
-        _G.error("Unknown response prefix: " .. prefix)
+        error("Unknown response prefix: " .. prefix)
     else
         return response_handler(res)
     end
@@ -59,18 +61,18 @@ function response.error(data)
     local err_line = data:sub(2)
 
     if err_line:sub(1, 3) == protocol.err then
-        _G.error("Redis error: " .. err_line:sub(5))
+        error("Redis error: " .. err_line:sub(5))
     else
-        _G.error("Redis error: " .. err_line)
+        error("Redis error: " .. err_line)
     end
 end
 
 function response.bulk(data)
     local str = data:sub(2)
-    local len = _G.tonumber(str)
+    local len = tonumber(str)
 
     if not len then 
-        _G.error('Cannot parse ' .. str .. ' as data length.')
+        error('Cannot parse ' .. str .. ' as data length.')
     else
         if len == -1 then return nil end
         local next_chunk = network.read(len + 2)
@@ -82,7 +84,7 @@ function response.multibulk(data)
     local str = data:sub(2)
 
     -- TODO: add a check if the returned value is indeed a number
-    local list_count = _G.tonumber(str)
+    local list_count = tonumber(str)
 
     if list_count == -1 then 
         return nil
@@ -91,7 +93,7 @@ function response.multibulk(data)
 
         if list_count > 0 then 
             for i = 1, list_count do
-                _G.table.insert(list, i, response.bulk(network.read()))
+                table.insert(list, i, response.bulk(network.read()))
             end
         end
 
@@ -101,13 +103,13 @@ end
 
 function response.integer(data)
     local res = data:sub(2)
-    local number = _G.tonumber(res)
+    local number = tonumber(res)
 
     if not number then
         if res == protocol.null then
             return nil
         else
-            _G.error('Cannot parse ' .. res .. ' as numeric response.')
+            error('Cannot parse ' .. res .. ' as numeric response.')
         end
     end
 
@@ -126,14 +128,14 @@ protocol.prefixes = {
 
 function request.raw(buffer)
     -- TODO: optimize
-    local bufferType = _G.type(buffer)
+    local bufferType = type(buffer)
 
     if bufferType == 'string' then
         network.write(buffer)
     elseif bufferType == 'table' then
-        network.write(_G.table.concat(buffer))
+        network.write(table.concat(buffer))
     else
-        _G.error('Argument error: ' .. bufferType)
+        error('Argument error: ' .. bufferType)
     end
 
     return response.read()
@@ -147,7 +149,7 @@ function request.inline(command, ...)
         arguments.n = nil
 
         if #arguments > 0 then 
-            arguments = _G.table.concat(arguments, ' ')
+            arguments = table.concat(arguments, ' ')
         else 
             arguments = ''
         end
@@ -160,12 +162,12 @@ end
 
 function request.bulk(command, ...)
     local arguments = arg
-    local data      = _G.tostring(_G.table.remove(arguments))
+    local data      = tostring(table.remove(arguments))
     arguments.n = nil
 
     -- TODO: optimize
     if #arguments > 0 then 
-        arguments = _G.table.concat(arguments, ' ')
+        arguments = table.concat(arguments, ' ')
     else 
         arguments = ''
     end
@@ -202,7 +204,7 @@ end
 function connect(host, port)
     client_socket = socket.connect(host, port)
     if not client_socket then
-        _G.error('Could not connect to ' .. host .. ':' .. port)
+        error('Could not connect to ' .. host .. ':' .. port)
     end
 
     local redis_client = {
@@ -253,7 +255,7 @@ redis_commands = {
         function(response) 
             local keys = {}
             response:gsub('%w+', function(key) 
-                _G.table.insert(keys, key)
+                table.insert(keys, key)
             end)
             return keys
         end
