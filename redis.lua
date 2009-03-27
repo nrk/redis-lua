@@ -50,7 +50,8 @@ function response.read()
 end
 
 function response.status(data)
-    return data:sub(2)
+    local sub = data:sub(2)
+    if sub == protocol.ok then return true else return sub end
 end
 
 function response.error(data)
@@ -224,7 +225,7 @@ redis_commands = {
     ), 
     echo  = bulk('ECHO'),  
     -- TODO: the server returns an empty -ERR on authentication failure
-    auth    = inline('AUTH'), 
+    auth  = inline('AUTH'), 
 
     -- connection handling
     quit  = custom('QUIT', 
