@@ -1,5 +1,5 @@
 local _G = _G
-local require, error, type = require, error, type
+local require, error, type, print = require, error, type, print
 local table, pairs, tostring, tonumber = table, pairs, tostring, tonumber
 
 module('Redis')
@@ -301,7 +301,13 @@ redis_commands = {
                     sort  = { 'desc', 'alpha' }
                 }
     --]]
-    sort    = inline('SORT'), 
+    sort  = custom('SORT', 
+        function(command, params)
+            -- TODO: here we will put the logic needed to serialize the params 
+            --       table to be sent as the argument of the SORT command.
+            return request.inline(command, params)
+        end
+    ), 
 
     -- persistence control commands
     save             = inline('SAVE'), 
