@@ -15,7 +15,9 @@ local protocol = { newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil' }
 local function toboolean(value) return value == 1 end
 
 local function load_methods(proto, methods)
-    local redis = table.clone(proto)
+    local redis = _G.setmetatable ({}, _G.getmetatable(proto))
+    for i, v in pairs(proto) do redis[i] = v end
+
     for i, v in pairs(methods) do redis[i] = v end
     return redis
 end
