@@ -6,7 +6,6 @@ module('Redis')
 
 local socket = require('socket')       -- requires LuaSocket as a dependency
 
-local client_socket  = nil
 local redis_commands = {}
 local network, request, response, utils = {}, {}, {}, {}, {}
 
@@ -24,39 +23,39 @@ end
 
 -- ############################################################################
 
-function network.write(buffer)
-    local _, err = client_socket:send(buffer)
+function network.write(client, buffer)
+    local _, err = client.socket:send(buffer)
     if err then error(err) end
 end
 
-function network.read(len)
+function network.read(client, len)
     if len == nil then len = '*l' end
-    local line, err = client_socket:receive(len)
+    local line, err = client.socket:receive(len)
     if not err then return line else error('Connection error: ' .. err) end
 end
 
 -- ############################################################################
 
-function response.read()
+function response.read(client)
     if options and options.close == true then return end
 
-    local res    = network.read()
+    local res    = network.read(client)
     local prefix = res:sub(1, -#res)
     local response_handler = protocol.prefixes[prefix]
 
     if not response_handler then 
         error("Unknown response prefix: " .. prefix)
     else
-        return response_handler(res)
+        return response_handler(client, res)
     end
 end
 
-function response.status(data)
+function response.status(client, data)
     local sub = data:sub(2)
     if sub == protocol.ok then return true else return sub end
 end
 
-function response.error(data)
+function response.error(client, data)
     local err_line = data:sub(2)
 
     if err_line:sub(1, 3) == protocol.err then
@@ -66,7 +65,7 @@ function response.error(data)
     end
 end
 
-function response.bulk(data)
+function response.bulk(client, data)
     local str = data:sub(2)
     local len = tonumber(str)
 
@@ -74,12 +73,12 @@ function response.bulk(data)
         error('Cannot parse ' .. str .. ' as data length.')
     else
         if len == -1 then return nil end
-        local next_chunk = network.read(len + 2)
+        local next_chunk = network.read(client, len + 2)
         return next_chunk:sub(1, -3);
     end
 end
 
-function response.multibulk(data)
+function response.multibulk(client, data)
     local str = data:sub(2)
 
     -- TODO: add a check if the returned value is indeed a number
@@ -92,7 +91,7 @@ function response.multibulk(data)
 
         if list_count > 0 then 
             for i = 1, list_count do
-                table.insert(list, i, response.bulk(network.read()))
+                table.insert(list, i, response.bulk(network.read(client)))
             end
         end
 
@@ -100,7 +99,7 @@ function response.multibulk(data)
     end
 end
 
-function response.integer(data)
+function response.integer(client, data)
     local res = data:sub(2)
     local number = tonumber(res)
 
@@ -125,24 +124,24 @@ protocol.prefixes = {
 
 -- ############################################################################
 
-function request.raw(buffer)
+function request.raw(client, buffer)
     -- TODO: optimize
     local bufferType = type(buffer)
 
     if bufferType == 'string' then
-        network.write(buffer)
+        network.write(client, buffer)
     elseif bufferType == 'table' then
-        network.write(table.concat(buffer))
+        network.write(client, table.concat(buffer))
     else
         error('Argument error: ' .. bufferType)
     end
 
-    return response.read()
+    return response.read(client)
 end
 
-function request.inline(command, ...)
+function request.inline(client, command, ...)
     if arg.n == 0 then
-        network.write(command .. protocol.newline)
+        network.write(client, command .. protocol.newline)
     else
         local arguments = arg
         arguments.n = nil
@@ -153,13 +152,13 @@ function request.inline(command, ...)
             arguments = ''
         end
 
-        network.write(command .. ' ' .. arguments .. protocol.newline)
+        network.write(client, command .. ' ' .. arguments .. protocol.newline)
     end
 
-    return response.read()
+    return response.read(client)
 end
 
-function request.bulk(command, ...)
+function request.bulk(client, command, ...)
     local arguments = arg
     local data      = tostring(table.remove(arguments))
     arguments.n = nil
@@ -171,7 +170,7 @@ function request.bulk(command, ...)
         arguments = ''
     end
 
-    return request.raw({ 
+    return request.raw(client, { 
         command, ' ', arguments, ' ', #data, protocol.newline, data, protocol.newline 
     })
 end
@@ -179,9 +178,8 @@ end
 -- ############################################################################
 
 local function custom(command, send, parse)
-    return function(_, ...)
-        local reply = send(command, ...)
-        -- TODO: set adapter to default on creation if nil
+    return function(self, ...)
+        local reply = send(self, command, ...)
         if parse then
             return parse(reply, command, ...)
         else
@@ -201,7 +199,7 @@ end
 -- ############################################################################
 
 function connect(host, port)
-    client_socket = socket.connect(host, port)
+    local client_socket = socket.connect(host, port)
     if not client_socket then
         error('Could not connect to ' .. host .. ':' .. port)
     end
@@ -209,7 +207,7 @@ function connect(host, port)
     local redis_client = {
         socket  = client_socket, 
         raw_cmd = function(self, buffer)
-            return request.raw(buffer .. protocol.newline)
+            return request.raw(self, buffer .. protocol.newline)
         end, 
     }
 
@@ -231,10 +229,10 @@ redis_commands = {
 
     -- connection handling
     quit  = custom('QUIT', 
-        function(command) 
+        function(client, command) 
             -- let's fire and forget! the connection is closed as soon 
             -- as the QUIT command is received by the server.
-            network.write(command .. protocol.newline)
+            network.write(client, command .. protocol.newline)
         end
     ), 
 
@@ -304,10 +302,10 @@ redis_commands = {
                 }
     --]]
     sort  = custom('SORT', 
-        function(command, params)
+        function(client, command, params)
             -- TODO: here we will put the logic needed to serialize the params 
             --       table to be sent as the argument of the SORT command.
-            return request.inline(command, params)
+            return request.inline(client, command, params)
         end
     ), 
 
@@ -316,7 +314,7 @@ redis_commands = {
     background_save  = inline('BGSAVE'), 
     last_save        = inline('LASTSAVE'), 
     shutdown         = custom('SHUTDOWN',
-        function(command) 
+        function(client, command) 
             -- let's fire and forget! the connection is closed as soon 
             -- as the SHUTDOWN command is received by the server.
             network.write(command .. protocol.newline)
