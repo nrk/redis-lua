@@ -260,6 +260,7 @@ redis_commands = {
     random_key       = inline('RANDOMKEY'), 
     rename           = inline('RENAME'), 
     rename_preserve  = inline('RENAMENX'), 
+    expire           = inline('EXPIRE', toboolean), 
     database_size    = inline('DBSIZE'), 
 
     -- commands operating on lists
