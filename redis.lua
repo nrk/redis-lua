@@ -37,8 +37,6 @@ end
 -- ############################################################################
 
 function response.read(client)
-    if options and options.close == true then return end
-
     local res    = network.read(client)
     local prefix = res:sub(1, -#res)
     local response_handler = protocol.prefixes[prefix]
