@@ -91,7 +91,7 @@ function response.multibulk(client, data)
 
         if list_count > 0 then 
             for i = 1, list_count do
-                table.insert(list, i, response.bulk(network.read(client)))
+                table.insert(list, i, response.bulk(client, network.read(client)))
             end
         end
 
