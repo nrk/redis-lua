@@ -252,7 +252,7 @@ redis_commands = {
     keys          = inline('KEYS', 
         function(response) 
             local keys = {}
-            response:gsub('%w+', function(key) 
+            response:gsub('[^%s]+', function(key) 
                 table.insert(keys, key)
             end)
             return keys
