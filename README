@@ -2,3 +2,62 @@ redis-lua
 -------------------------------------------------------------------------------
 
 A Lua client library for the redis key value storage system.
+
+
+== USAGE:
+
+  * Include redis-lua in your script:
+
+    require 'redis-lua'
+
+  * Connect to a redis-server instance and send a PING command:
+
+    local redis = Redis.connect('127.0.0.1', 6379)
+    local response = redis:ping()           -- true
+
+  * Set and get a key+value:
+
+    redis:set('usr:nrk', 10)
+    redis:set('usr:nobody', 5)
+    local value = redis:get('usr:nrk')      -- 10
+
+  * Increment and decrement integer values:
+
+    redis:increment('usr:nrk')              -- 11
+    redis:decrement_by('usr:nobody', 3)     -- 2
+
+  * Returns all the keys matching the specified pattern:
+
+    local keys = redis:keys('usr:*')        -- {'usr:nrk','usr:nobody'}
+
+  * Get infos from the server:
+
+    for k,v in pairs(redis:info()) do print(k .. ' => ' .. v) end
+    --[[
+        total_connections_received => 5
+        db0 =>  keys=8,expires=0
+        uptime_in_days => 0
+        uptime_in_seconds => 16
+        connected_slaves => 0
+        connected_clients => 1
+        role => master
+        last_save_time => 1245612714
+        used_memory => 3378
+        total_commands_processed => 14
+        changes_since_last_save => 10
+        bgsave_in_progress => 0
+        redis_version => 0.900
+    ]]
+
+
+== TODO:
+
+  * improve methods such as connect, get_multiple and sort
+  * redis-lua actually needs more error-checking code
+  * write a few test perhaps using lunit or luaspec
+  * write more docs
+
+
+== REQUIREMENTS:
+
+  * LuaSocket: http://www.tecgraf.puc-rio.br/~diego/professional/luasocket/
