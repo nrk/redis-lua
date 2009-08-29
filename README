@@ -8,7 +8,7 @@ A Lua client library for the redis key value storage system.
 
   * Include redis-lua in your script:
 
-    require 'redis-lua'
+    require 'redis'
 
   * Connect to a redis-server instance and send a PING command:
 
@@ -26,9 +26,19 @@ A Lua client library for the redis key value storage system.
     redis:increment('usr:nrk')              -- 11
     redis:decrement_by('usr:nobody', 3)     -- 2
 
-  * Returns all the keys matching the specified pattern:
+  * Return all the keys matching the specified pattern:
 
     local keys = redis:keys('usr:*')        -- {'usr:nrk','usr:nobody'}
+
+  * Sort list values by using various parameters supported by the server:
+
+    for _,v in ipairs({ 10,3,2,6,1,4,23 }) do 
+        redis:push_tail('usr:nrk:ids',v)
+    end
+
+    local sorted = redis:sort('usr:nrk:ids', { 
+         sort = 'asc', alpha = true, limit = { 1, 5 }
+    })      -- {1= 10, 2= 2 , 3= 23, 4= 3, 5= 4}
 
   * Get infos from the server:
 
@@ -52,7 +62,7 @@ A Lua client library for the redis key value storage system.
 
 == TODO:
 
-  * improve methods such as connect, get_multiple and sort
+  * improve methods such as connect and get_multiple
   * redis-lua actually needs more error-checking code
   * write a few test perhaps using lunit or luaspec
   * write more docs
