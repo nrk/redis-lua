@@ -64,10 +64,11 @@ A Lua client library for the redis key value storage system.
 
   * improve methods such as connect and get_multiple
   * redis-lua actually needs more error-checking code
-  * write a few test perhaps using lunit or luaspec
+  * complete the test suite
   * write more docs
 
 
 == REQUIREMENTS:
 
   * LuaSocket: http://www.tecgraf.puc-rio.br/~diego/professional/luasocket/
+  * Telescope (required by the test suite): http://telescope.luaforge.net/
