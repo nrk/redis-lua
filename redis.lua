@@ -299,19 +299,42 @@ redis_commands = {
 
     -- sorting
     --[[
-        TODO: should we pass sort parameters as a table? e.g: 
-                params = { 
-                    by    = 'weight_*', 
-                    get   = 'object_*', 
-                    limit = { 0, 10 },
-                    sort  = { 'desc', 'alpha' }
-                }
+            params = { 
+                by    = 'weight_*', 
+                get   = 'object_*', 
+                limit = { 0, 10 },
+                sort  = 'desc',
+                alpha = true, 
+            }
     --]]
     sort  = custom('SORT', 
-        function(client, command, params)
-            -- TODO: here we will put the logic needed to serialize the params 
-            --       table to be sent as the argument of the SORT command.
-            return request.inline(client, command, params)
+        function(client, command, key, params)
+            local query = { key }
+
+            if params then
+                if params.by then 
+                    table.insert(query, 'BY ' .. params.by)
+                end
+
+                if type(params.limit) == 'table' then 
+                    -- TODO: check for lower and upper limits
+                    table.insert(query, 'LIMIT ' .. params.limit[1] .. ' ' .. params.limit[2])
+                end
+
+                if params.get then 
+                    table.insert(query, 'GET ' .. params.get)
+                end
+
+                if params.sort then
+                    table.insert(query, params.sort)
+                end
+
+                if params.alpha == true then
+                    table.insert(query, 'ALPHA')
+                end
+            end
+
+            return request.inline(client, command, table.concat(query, ' '))
         end
     ), 
 
