@@ -13,6 +13,12 @@ local protocol = { newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil' }
 
 local function toboolean(value) return value == 1 end
 
+local function fire_and_forget(client, command) 
+    -- let's fire and forget! the connection is closed as soon 
+    -- as the SHUTDOWN command is received by the server.
+    network.write(client, command .. protocol.newline)
+end
+
 local function load_methods(proto, methods)
     local redis = _G.setmetatable ({}, _G.getmetatable(proto))
     for i, v in pairs(proto) do redis[i] = v end
@@ -226,13 +232,7 @@ redis_commands = {
     auth  = inline('AUTH'), 
 
     -- connection handling
-    quit  = custom('QUIT', 
-        function(client, command) 
-            -- let's fire and forget! the connection is closed as soon 
-            -- as the QUIT command is received by the server.
-            network.write(client, command .. protocol.newline)
-        end
-    ), 
+    quit  = custom('QUIT', fire_and_forget), 
 
     -- commands operating on string values
     set           = bulk('SET'), 
@@ -319,13 +319,7 @@ redis_commands = {
     save             = inline('SAVE'), 
     background_save  = inline('BGSAVE'), 
     last_save        = inline('LASTSAVE'), 
-    shutdown         = custom('SHUTDOWN',
-        function(client, command) 
-            -- let's fire and forget! the connection is closed as soon 
-            -- as the SHUTDOWN command is received by the server.
-            network.write(client, command .. protocol.newline)
-        end
-    ), 
+    shutdown         = custom('SHUTDOWN', fire_and_forget), 
 
     -- remote server control commands
     info = inline('INFO', 
