@@ -77,6 +77,11 @@ context("Redis client", function()
             assert_true(redis:multiple_set('a', 1, 'b', 2, 'c', 3))
         end)
 
+        test("MSETNX (redis:multiple_set_preserve)", function()
+           assert_true(redis:multiple_set({ a = 1, b = 2, c = 3 }))
+           assert_false(redis:multiple_set_preserve('d', 4, 'a', 'dup', 'e', 5))
+        end
+
         test("GET (redis:get)", function() 
             local k1, v1= "k1", "v1"
 

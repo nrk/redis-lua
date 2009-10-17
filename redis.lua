@@ -270,6 +270,7 @@ redis_commands = {
     set           = bulk('SET'), 
     set_preserve  = bulk('SETNX', toboolean), 
     multiple_set  = multibulk('MSET'), 
+    multiple_set_preserve = multibulk('MSETNX'),  
     get           = inline('GET'), 
     get_multiple  = inline('MGET'), 
     get_set       = bulk('GETSET'), 
