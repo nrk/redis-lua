@@ -68,9 +68,9 @@ context("Redis client", function()
 
         test("MSET (redis:multiple_set)", function()
             local kvs = { 
-                "italian"  = "ciao", 
-                "english"  = "hello", 
-                "japanese" = "こんいちは！", 
+                italian  = "ciao", 
+                english  = "hello", 
+                japanese = "こんいちは！", 
             }
 
             assert_true(redis:multiple_set(kvs))
@@ -78,9 +78,9 @@ context("Redis client", function()
         end)
 
         test("MSETNX (redis:multiple_set_preserve)", function()
-           assert_true(redis:multiple_set({ a = 1, b = 2, c = 3 }))
+           assert_true(redis:multiple_set_preserve({ a = 1, b = 2, c = 3 }))
            assert_false(redis:multiple_set_preserve('d', 4, 'a', 'dup', 'e', 5))
-        end
+        end)
 
         test("GET (redis:get)", function() 
             local k1, v1= "k1", "v1"
