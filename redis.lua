@@ -269,8 +269,8 @@ redis_commands = {
     -- commands operating on string values
     set           = bulk('SET'), 
     set_preserve  = bulk('SETNX', toboolean), 
-    multiple_set  = multibulk('MSET'), 
-    multiple_set_preserve = multibulk('MSETNX', toboolean),  
+    set_multiple  = multibulk('MSET'), 
+    set_multiple_preserve = multibulk('MSETNX', toboolean),  
     get           = inline('GET'), 
     get_multiple  = inline('MGET'), 
     get_set       = bulk('GETSET'), 
