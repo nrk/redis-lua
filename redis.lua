@@ -179,6 +179,34 @@ function request.bulk(client, command, ...)
     })
 end
 
+function request.multibulk(client, command, ...)
+    local buffer    = { }
+    local arguments = { }
+    local args_len  = 1
+
+    if arg.n == 1 and type(arg[1]) == 'table' then
+        for k, v in pairs(arg[1]) do 
+            table.insert(arguments, k)
+            table.insert(arguments, v)
+            args_len = args_len + 2 
+        end
+    else
+        arguments = arg
+        args_len  = args_len + arg.n
+        arguments.n = nil
+    end
+ 
+    table.insert(buffer, '*' .. tostring(args_len) .. protocol.newline)
+    table.insert(buffer, '$' .. #command .. protocol.newline .. command .. protocol.newline)
+
+    for _, argument in pairs(arguments) do
+        s_argument = tostring(argument)
+        table.insert(buffer, '$' .. #s_argument .. protocol.newline .. s_argument .. protocol.newline)
+    end
+
+    return request.raw(client, buffer)
+end
+
 -- ############################################################################
 
 local function custom(command, send, parse)
@@ -194,6 +222,10 @@ end
 
 local function bulk(command, reader)
     return custom(command, request.bulk, reader)
+end
+
+local function multibulk(command, reader)
+    return custom(command, request.multibulk, reader)
 end
 
 local function inline(command, reader)
@@ -237,6 +269,7 @@ redis_commands = {
     -- commands operating on string values
     set           = bulk('SET'), 
     set_preserve  = bulk('SETNX', toboolean), 
+    multiple_set  = multibulk('MSET'), 
     get           = inline('GET'), 
     get_multiple  = inline('MGET'), 
     get_set       = bulk('GETSET'), 

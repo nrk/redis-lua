@@ -5,7 +5,7 @@ require "redis"
 local settings = {
     host    = "127.0.0.1",
     port    = 6379, 
-    version = 0.900,
+    version = 1.001,
     multiple_dbs = false, 
 }
 
@@ -64,6 +64,17 @@ context("Redis client", function()
 
             assert_true(redis:set_preserve(k1, 1))
             assert_false(redis:set_preserve(k1, 2))
+        end)
+
+        test("MSET (redis:multiple_set)", function()
+            local kvs = { 
+                "italian"  = "ciao", 
+                "english"  = "hello", 
+                "japanese" = "こんいちは！", 
+            }
+
+            assert_true(redis:multiple_set(kvs))
+            assert_true(redis:multiple_set('a', 1, 'b', 2, 'c', 3))
         end)
 
         test("GET (redis:get)", function() 
