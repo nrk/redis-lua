@@ -1,6 +1,7 @@
 local _G = _G
 local require, error, type, print = require, error, type, print
 local table, pairs, tostring, tonumber = table, pairs, tostring, tonumber
+local setmetatable, setfenv = setmetatable, setfenv
 
 module('Redis')
 
@@ -246,6 +247,51 @@ function connect(host, port)
             request.raw(self, buffer .. protocol.newline)
             return response.read(self)
         end, 
+        pipeline = function(self, block)
+            local requests, replies = {}, {}
+            local __netwrite, __netread = network.write, network.read
+
+            network.write = function(_, buffer)
+                table.insert(requests, buffer)
+            end
+
+            -- TODO: this hack is necessary to temporarily reuse the current 
+            --       request -> response handling implementation of redis-lua 
+            --       without further changes in the code, but it will surely 
+            --       disappear when the new command-definition infrastructure 
+            --       will finally be in place.
+            network.read = function()
+                return "+OK\n"
+            end
+
+            local pipeline_mt = setmetatable({}, { 
+                __index = function(env, name) 
+                    local cmd = redis_commands[name]
+                    if cmd == nil then 
+                        error('unknown redis command') 
+                    end
+                    return function(...) 
+                        return cmd(self, ...)
+                    end
+                end 
+            })
+
+            -- TODO: will use xpcall to handle errors, resume the actual network.write 
+            --       and network.read functions and then rethrow out of the pipeline block.
+            setfenv(block, pipeline_mt)()
+
+            network.write, network.read = __netwrite, __netread
+
+            network.write(self, table.concat(requests, ''))
+
+            for _, request in pairs(requests) do
+                -- TODO: custom parsers for replies cannot be used at the moment due 
+                --       to the limitations of the current implementation.
+                table.insert(replies, response.read(self))
+            end
+
+            return replies
+        end,
     }
 
     return load_methods(redis_client, redis_commands)
