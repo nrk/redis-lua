@@ -17,6 +17,7 @@ local function fire_and_forget(client, command)
     -- let's fire and forget! the connection is closed as soon 
     -- as the SHUTDOWN command is received by the server.
     network.write(client, command .. protocol.newline)
+    return false
 end
 
 local function load_methods(proto, methods)
@@ -139,8 +140,6 @@ function request.raw(client, buffer)
     else
         error('Argument error: ' .. bufferType)
     end
-
-    return response.read(client)
 end
 
 function request.inline(client, command, ...)
@@ -158,8 +157,6 @@ function request.inline(client, command, ...)
 
         network.write(client, command .. ' ' .. arguments .. protocol.newline)
     end
-
-    return response.read(client)
 end
 
 function request.bulk(client, command, ...)
@@ -174,7 +171,7 @@ function request.bulk(client, command, ...)
         arguments = ''
     end
 
-    return request.raw(client, { 
+    request.raw(client, { 
         command, ' ', arguments, ' ', #data, protocol.newline, data, protocol.newline 
     })
 end
@@ -204,14 +201,17 @@ function request.multibulk(client, command, ...)
         table.insert(buffer, '$' .. #s_argument .. protocol.newline .. s_argument .. protocol.newline)
     end
 
-    return request.raw(client, buffer)
+    request.raw(client, buffer)
 end
 
 -- ############################################################################
 
 local function custom(command, send, parse)
     return function(self, ...)
-        local reply = send(self, command, ...)
+        local has_reply = send(self, command, ...)
+        if has_reply == false then return end
+
+        local reply = response.read(self)
         if parse then
             return parse(reply, command, ...)
         else
@@ -243,7 +243,8 @@ function connect(host, port)
     local redis_client = {
         socket  = client_socket, 
         raw_cmd = function(self, buffer)
-            return request.raw(self, buffer .. protocol.newline)
+            request.raw(self, buffer .. protocol.newline)
+            return response.read(self)
         end, 
     }
 
@@ -368,7 +369,7 @@ redis_commands = {
                 end
             end
 
-            return request.inline(client, command, table.concat(query, ' '))
+            request.inline(client, command, table.concat(query, ' '))
         end
     ), 
 
@@ -392,7 +393,7 @@ redis_commands = {
     slave_of        = inline('SLAVEOF'), 
     slave_of_no_one = custom('SLAVEOF', 
         function(client, command)
-            return request.inline(client, command, 'NO ONE')
+            request.inline(client, command, 'NO ONE')
         end
     ),
 }
