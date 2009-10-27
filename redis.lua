@@ -248,6 +248,7 @@ function connect(host, port)
             return response.read(self)
         end, 
         pipeline = function(self, block)
+            local fake_ok_response  = '+' .. protocol.ok .. protocol.newline
             local requests, replies = {}, {}
             local __netwrite, __netread = network.write, network.read
 
@@ -261,7 +262,7 @@ function connect(host, port)
             --       disappear when the new command-definition infrastructure 
             --       will finally be in place.
             network.read = function()
-                return "+OK\n"
+                return fake_ok_response
             end
 
             local pipeline_mt = setmetatable({}, { 
