@@ -1,6 +1,7 @@
 module('Redis', package.seeall)
 
 local socket = require('socket')       -- requires LuaSocket as a dependency
+local uri    = require('socket.url')
 
 local redis_commands = {}
 local network, request, response = {}, {}, {}, {}
@@ -231,7 +232,27 @@ end
 
 -- ############################################################################
 
-function connect(host, port)
+function connect(...)
+    local host, port = defaults.host, defaults.port
+
+    if arg.n == 1 then
+        local server = uri.parse(arg[1])
+        if server.scheme then
+            if server.scheme ~= 'redis' then 
+                error('"' .. server.scheme .. '" is an invalid scheme')
+            end
+            host, port = server.host, tonumber(server.port or defaults.port)
+        else
+            host, port = server.path, defaults.port
+        end
+    elseif arg.n > 1 then 
+        host, port = arg[1], arg[2]
+    end
+
+    if host == nil then 
+        error('please specify the address of running redis instance')
+    end
+
     local client_socket = socket.connect(host, port)
     if not client_socket then
         error('Could not connect to ' .. host .. ':' .. port)
