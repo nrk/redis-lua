@@ -343,6 +343,7 @@ redis_commands = {
     set_diff                = inline('SDIFF'), 
     set_diff_store          = inline('SDIFFSTORE'), 
     set_members             = inline('SMEMBERS'), 
+    set_random_member       = inline('SRANDMEMBER'), 
 
     -- multiple databases handling commands
     select_database  = inline('SELECT'), 
