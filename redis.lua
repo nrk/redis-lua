@@ -5,6 +5,7 @@ local socket = require('socket')       -- requires LuaSocket as a dependency
 local redis_commands = {}
 local network, request, response = {}, {}, {}, {}
 
+local defaults = { host = '127.0.0.1', port = 6379 }
 local protocol = { newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil' }
 
 local function toboolean(value) return value == 1 end
