@@ -18,7 +18,7 @@ local function fire_and_forget(client, command)
 end
 
 local function load_methods(proto, methods)
-    local redis = _G.setmetatable ({}, _G.getmetatable(proto))
+    local redis = setmetatable ({}, getmetatable(proto))
     for i, v in pairs(proto) do redis[i] = v end
 
     for i, v in pairs(methods) do redis[i] = v end
