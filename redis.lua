@@ -7,7 +7,7 @@ module('Redis')
 local socket = require('socket')       -- requires LuaSocket as a dependency
 
 local redis_commands = {}
-local network, request, response, utils = {}, {}, {}, {}, {}
+local network, request, response = {}, {}, {}, {}
 
 local protocol = { newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil' }
 
