@@ -332,6 +332,7 @@ redis_commands = {
     -- commands operating on sets
     set_add                 = bulk('SADD'), 
     set_remove              = bulk('SREM'), 
+    set_pop                 = inline('SPOP'), 
     set_move                = bulk('SMOVE'), 
     set_cardinality         = inline('SCARD'), 
     set_is_member           = inline('SISMEMBER'), 
