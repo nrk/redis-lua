@@ -1,7 +1,7 @@
 local _G = _G
 local require, error, type, print = require, error, type, print
 local table, pairs, tostring, tonumber = table, pairs, tostring, tonumber
-local setmetatable, setfenv = setmetatable, setfenv
+local setmetatable, setfenv, pcall = setmetatable, setfenv, pcall
 
 module('Redis')
 
@@ -268,7 +268,7 @@ function connect(host, port)
                 __index = function(env, name) 
                     local cmd = redis_commands[name]
                     if cmd == nil then 
-                        error('unknown redis command') 
+                        error('unknown redis command', 2)
                     end
                     return function(...) 
                         return cmd(self, ...)
@@ -276,11 +276,10 @@ function connect(host, port)
                 end 
             })
 
-            -- TODO: will use xpcall to handle errors, resume the actual network.write 
-            --       and network.read functions and then rethrow out of the pipeline block.
-            setfenv(block, pipeline_mt)()
+            local success, retval = pcall(setfenv(block, pipeline_mt))
 
             network.write, network.read = __netwrite, __netread
+            if not success then error(retval, 0) end
 
             network.write(self, table.concat(requests, ''))
 
