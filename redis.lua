@@ -241,7 +241,7 @@ function connect(...)
             if server.scheme ~= 'redis' then 
                 error('"' .. server.scheme .. '" is an invalid scheme')
             end
-            host, port = server.host, tonumber(server.port or defaults.port)
+            host, port = server.host, server.port or defaults.port
         else
             host, port = server.path, defaults.port
         end
@@ -253,7 +253,7 @@ function connect(...)
         error('please specify the address of running redis instance')
     end
 
-    local client_socket = socket.connect(host, port)
+    local client_socket = socket.connect(host, tonumber(port))
     if not client_socket then
         error('Could not connect to ' .. host .. ':' .. port)
     end
