@@ -1,8 +1,4 @@
-local _G = _G
-local require, error, type, print = require, error, type, print
-local table, pairs, tostring, tonumber = table, pairs, tostring, tonumber
-
-module('Redis')
+module('Redis', package.seeall)
 
 local socket = require('socket')       -- requires LuaSocket as a dependency
 
