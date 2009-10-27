@@ -345,6 +345,15 @@ redis_commands = {
     set_members             = inline('SMEMBERS'), 
     set_random_member       = inline('SRANDMEMBER'), 
 
+    -- commands operating on ordered sets
+    zset_add                = bulk('ZADD'), 
+    zset_remove             = bulk('ZREM'), 
+    zset_range              = inline('ZRANGE'), 
+    zset_range_by_score     = inline('ZRANGEBYSCORE'), 
+    zset_reverse_range      = inline('ZREVRANGE'), 
+    zset_length             = inline('ZLEN'), 
+    zset_score              = bulk('ZSCORE'), 
+
     -- multiple databases handling commands
     select_database  = inline('SELECT'), 
     move_key         = inline('MOVE'), 
