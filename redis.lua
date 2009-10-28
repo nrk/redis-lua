@@ -345,7 +345,7 @@ redis_commands = {
     set_members             = inline('SMEMBERS'), 
     set_random_member       = inline('SRANDMEMBER'), 
 
-    -- commands operating on ordered sets
+    -- commands operating on sorted sets 
     zset_add                = bulk('ZADD'), 
     zset_remove             = bulk('ZREM'), 
     zset_range              = inline('ZRANGE'), 
@@ -361,14 +361,13 @@ redis_commands = {
     flush_databases  = inline('FLUSHALL'), 
 
     -- sorting
-    --[[
-            params = { 
-                by    = 'weight_*', 
-                get   = 'object_*', 
-                limit = { 0, 10 },
-                sort  = 'desc',
-                alpha = true, 
-            }
+    --[[ params = { 
+            by    = 'weight_*', 
+            get   = 'object_*', 
+            limit = { 0, 10 },
+            sort  = 'desc',
+            alpha = true, 
+        }   
     --]]
     sort  = custom('SORT', 
         function(client, command, key, params)
