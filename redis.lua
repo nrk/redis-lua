@@ -351,7 +351,7 @@ redis_commands = {
     zset_range              = inline('ZRANGE'), 
     zset_range_by_score     = inline('ZRANGEBYSCORE'), 
     zset_reverse_range      = inline('ZREVRANGE'), 
-    zset_length             = inline('ZLEN'), 
+    zset_cardinality        = inline('ZCARD'), 
     zset_score              = bulk('ZSCORE'), 
 
     -- multiple databases handling commands
