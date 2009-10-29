@@ -346,13 +346,13 @@ redis_commands = {
     set_random_member       = inline('SRANDMEMBER'), 
 
     -- commands operating on sorted sets 
-    zset_add                = bulk('ZADD'), 
-    zset_remove             = bulk('ZREM'), 
-    zset_range              = inline('ZRANGE'), 
-    zset_range_by_score     = inline('ZRANGEBYSCORE'), 
-    zset_reverse_range      = inline('ZREVRANGE'), 
-    zset_cardinality        = inline('ZCARD'), 
-    zset_score              = bulk('ZSCORE'), 
+    zset_add                   = bulk('ZADD'), 
+    zset_remove                = bulk('ZREM'), 
+    zset_range                 = inline('ZRANGE'), 
+    zset_range_by_score        = inline('ZRANGEBYSCORE'), 
+    zset_reverse_range         = inline('ZREVRANGE'), 
+    zset_cardinality           = inline('ZCARD'), 
+    zset_score                 = bulk('ZSCORE'), 
     zset_remove_range_by_score = inline('ZREMRANGEBYSCORE'), 
 
     -- multiple databases handling commands
