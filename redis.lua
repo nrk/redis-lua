@@ -314,6 +314,7 @@ redis_commands = {
     rename           = inline('RENAME'), 
     rename_preserve  = inline('RENAMENX'), 
     expire           = inline('EXPIRE', toboolean), 
+    expire_at        = inline('EXPIREAT', toboolean), 
     database_size    = inline('DBSIZE'), 
     time_to_live     = inline('TTL'), 
 
