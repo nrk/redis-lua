@@ -215,6 +215,11 @@ context("Redis client", function()
                 limit = { 1, 4 }
             }), { "20","10","3","2" })
         end)
+
+        test("SORT (redis:sort) with parameter STORE", function() 
+            assert_equal(redis:sort(list01, { store = 'list01_ordered' }), 5)
+            assert_true(redis:exists('list01_ordered'))
+        end)
     end)
 
     --[[  TODO: 

@@ -396,6 +396,10 @@ redis_commands = {
                 if params.alpha == true then
                     table.insert(query, 'ALPHA')
                 end
+
+                if params.store then
+                    table.insert(query, 'STORE ' .. params.store)
+                end
             end
 
             return request.inline(client, command, table.concat(query, ' '))
