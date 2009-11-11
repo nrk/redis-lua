@@ -319,16 +319,17 @@ redis_commands = {
     time_to_live     = inline('TTL'), 
 
     -- commands operating on lists
-    push_tail    = bulk('RPUSH'), 
-    push_head    = bulk('LPUSH'), 
-    list_length  = inline('LLEN'), 
-    list_range   = inline('LRANGE'), 
-    list_trim    = inline('LTRIM'), 
-    list_index   = inline('LINDEX'), 
-    list_set     = bulk('LSET'), 
-    list_remove  = bulk('LREM'), 
-    pop_first    = inline('LPOP'), 
-    pop_last     = inline('RPOP'), 
+    push_tail     = bulk('RPUSH'), 
+    push_head     = bulk('LPUSH'), 
+    list_length   = inline('LLEN'), 
+    list_range    = inline('LRANGE'), 
+    list_trim     = inline('LTRIM'), 
+    list_index    = inline('LINDEX'), 
+    list_set      = bulk('LSET'), 
+    list_remove   = bulk('LREM'), 
+    list_pop_push = bulk('LPOPPUSH'), 
+    pop_first     = inline('LPOP'), 
+    pop_last      = inline('RPOP'), 
 
     -- commands operating on sets
     set_add                 = bulk('SADD'), 
