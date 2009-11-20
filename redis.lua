@@ -349,6 +349,7 @@ redis_commands = {
 
     -- commands operating on sorted sets 
     zset_add                   = bulk('ZADD'), 
+    zet_increment_by           = bulk('ZINCRBY'), 
     zset_remove                = bulk('ZREM'), 
     zset_range                 = inline('ZRANGE'), 
     zset_range_by_score        = inline('ZRANGEBYSCORE'), 
