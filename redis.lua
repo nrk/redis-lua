@@ -142,32 +142,23 @@ function request.raw(client, buffer)
 end
 
 function request.inline(client, command, ...)
-    if arg.n == 0 then
+    local args = {...}
+
+    if #args == 0 then
         network.write(client, command .. protocol.newline)
     else
-        local arguments = arg
-        arguments.n = nil
-
-        if #arguments > 0 then 
-            arguments = table.concat(arguments, ' ')
-        else 
-            arguments = ''
-        end
-
-        network.write(client, command .. ' ' .. arguments .. protocol.newline)
+        network.write(client, command .. ' ' .. table.concat(args) .. protocol.newline)
     end
 
     return response.read(client)
 end
 
 function request.bulk(client, command, ...)
-    local arguments = arg
-    local data      = tostring(table.remove(arguments))
-    arguments.n = nil
+    local args = {...}
+    local data = tostring(table.remove(args))
 
-    -- TODO: optimize
-    if #arguments > 0 then 
-        arguments = table.concat(arguments, ' ')
+    if #args > 0 then 
+        arguments = table.concat(args, ' ')
     else 
         arguments = ''
     end
@@ -178,20 +169,20 @@ function request.bulk(client, command, ...)
 end
 
 function request.multibulk(client, command, ...)
+    local args      = {...}
     local buffer    = { }
     local arguments = { }
     local args_len  = 1
 
-    if arg.n == 1 and type(arg[1]) == 'table' then
-        for k, v in pairs(arg[1]) do 
+    if #args == 1 and type(args[1]) == 'table' then
+        for k, v in pairs(args[1]) do 
             table.insert(arguments, k)
             table.insert(arguments, v)
             args_len = args_len + 2 
         end
     else
-        arguments = arg
-        args_len  = args_len + arg.n
-        arguments.n = nil
+        arguments = args
+        args_len  = args_len + argn
     end
  
     table.insert(buffer, '*' .. tostring(args_len) .. protocol.newline)
@@ -233,10 +224,11 @@ end
 -- ############################################################################
 
 function connect(...)
+    local args = {...}
     local host, port = defaults.host, defaults.port
 
-    if arg.n == 1 then
-        local server = uri.parse(arg[1])
+    if #args == 1 then
+        local server = uri.parse(select(1, ...))
         if server.scheme then
             if server.scheme ~= 'redis' then 
                 error('"' .. server.scheme .. '" is an invalid scheme')
@@ -245,8 +237,8 @@ function connect(...)
         else
             host, port = server.path, defaults.port
         end
-    elseif arg.n > 1 then 
-        host, port = arg[1], arg[2]
+    elseif #args > 1 then 
+        host, port = unpack(args)
     end
 
     if host == nil then 
