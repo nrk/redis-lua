@@ -264,11 +264,7 @@ end
 
 redis_commands = {
     -- miscellaneous commands
-    ping  = inline('PING', 
-        function(response) 
-            if response == 'PONG' then return true else return false end
-        end
-    ), 
+    ping  = inline('PING', function(response) return response == 'PONG' end), 
     echo  = bulk('ECHO'),  
     -- TODO: the server returns an empty -ERR on authentication failure
     auth  = inline('AUTH'), 
