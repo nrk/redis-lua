@@ -1,6 +1,6 @@
 module('Redis', package.seeall)
 
-local socket = require('socket')       -- requires LuaSocket as a dependency
+local socket = require('socket')
 local uri    = require('socket.url')
 
 local redis_commands = {}
@@ -266,7 +266,6 @@ redis_commands = {
     -- miscellaneous commands
     ping  = inline('PING', function(response) return response == 'PONG' end), 
     echo  = bulk('ECHO'),  
-    -- TODO: the server returns an empty -ERR on authentication failure
     auth  = inline('AUTH'), 
 
     -- connection handling
