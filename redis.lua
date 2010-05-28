@@ -400,6 +400,7 @@ redis_commands = {
     background_save  = inline('BGSAVE'), 
     last_save        = inline('LASTSAVE'), 
     shutdown         = custom('SHUTDOWN', fire_and_forget), 
+    background_rewrite_aof = inline('BGREWRITEAOF'),
 
     -- remote server control commands
     info = inline('INFO', 
