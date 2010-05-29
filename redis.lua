@@ -147,7 +147,7 @@ function request.inline(client, command, ...)
     if #args == 0 then
         network.write(client, command .. protocol.newline)
     else
-        network.write(client, command .. ' ' .. table.concat(args) .. protocol.newline)
+        network.write(client, command .. ' ' .. table.concat(args, ' ') .. protocol.newline)
     end
 
     return response.read(client)
