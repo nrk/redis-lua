@@ -408,7 +408,15 @@ redis_commands = {
             local info = {}
             response:gsub('([^\r\n]*)\r\n', function(kv) 
                 local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
-                info[k] = v
+                if (k:match('db%d+')) then
+                    info[k] = {}
+                    v:gsub(',', function(dbkv)
+                        local dbk,dbv = kv:match('([^:]*)=([^:]*)')
+                        info[k][dbk] = dbv
+                    end)
+                else
+                    info[k] = v
+                end
             end)
             return info
         end
