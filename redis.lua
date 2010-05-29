@@ -352,7 +352,7 @@ redis_commands = {
     decrement     = inline('DECR'), 
     decrement_by  = inline('DECRBY'), 
     exists        = inline('EXISTS', toboolean), 
-    delete        = inline('DEL', toboolean), 
+    delete        = inline('DEL'), 
     type          = inline('TYPE'), 
 
     -- commands operating on the key space
