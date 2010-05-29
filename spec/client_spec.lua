@@ -27,12 +27,6 @@ context("Redis client", function()
         assert_not_nil(redis.socket)
     end)
 
-    it("Matches the target version " .. string.format("%.3f", settings.version), function()
-        local info = redis:info()
-        assert_not_empty(info)
-        assert_gte(tonumber(info.redis_version), settings.version)
-    end)
-
     context("Miscellaneous commands", function() 
         test("PING (redis:ping)", function() 
             assert_true(redis:ping())
