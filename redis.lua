@@ -10,7 +10,13 @@ local socket = require('socket')       -- requires LuaSocket as a dependency
 local redis_commands = {}
 local network, request, response, utils = {}, {}, {}, {}, {}
 
-local protocol = { newline = '\r\n', ok = 'OK', err = 'ERR', null = 'nil' }
+local protocol = {
+    newline = '\r\n',
+    ok      = 'OK',
+    err     = 'ERR',
+    queued  = 'QUEUED',
+    null    = 'nil'
+}
 
 local function toboolean(value) return value == 1 end
 
@@ -58,7 +64,13 @@ end
 
 function response.status(client, data)
     local sub = data:sub(2)
-    if sub == protocol.ok then return true else return sub end
+    if sub == protocol.ok then
+        return true
+    elseif sub == protocol.queued then
+        return { queued = true }
+    else
+        return sub
+    end
 end
 
 function response.error(client, data)
@@ -213,10 +225,15 @@ local function custom(command, send, parse)
         if has_reply == false then return end
 
         local reply = response.read(self)
-        if parse then
-            return parse(reply, command, ...)
-        else
+        if type(reply) == 'table' and reply.queued then
+            reply.parser = parse
             return reply
+        else
+            if parse then
+                return parse(reply, command, ...)
+            else
+                return reply
+            end
         end
     end
 end
@@ -248,8 +265,8 @@ function connect(host, port)
             return response.read(self)
         end, 
         pipeline = function(self, block)
-            local fake_ok_response  = '+' .. protocol.ok .. protocol.newline
-            local requests, replies = {}, {}
+            local simulate_queued = '+' .. protocol.queued
+            local requests, replies, parsers = {}, {}, {}
             local __netwrite, __netread = network.write, network.read
 
             network.write = function(_, buffer)
@@ -262,7 +279,7 @@ function connect(host, port)
             --       disappear when the new command-definition infrastructure 
             --       will finally be in place.
             network.read = function()
-                return fake_ok_response
+                return simulate_queued
             end
 
             local pipeline_mt = setmetatable({}, { 
@@ -272,7 +289,9 @@ function connect(host, port)
                         error('unknown redis command', 2)
                     end
                     return function(...) 
-                        return cmd(self, ...)
+                        local reply = cmd(self, ...)
+                        table.insert(parsers, #requests, reply.parser)
+                        return reply
                     end
                 end 
             })
@@ -284,10 +303,13 @@ function connect(host, port)
 
             network.write(self, table.concat(requests, ''))
 
-            for _, request in pairs(requests) do
-                -- TODO: custom parsers for replies cannot be used at the moment due 
-                --       to the limitations of the current implementation.
-                table.insert(replies, response.read(self))
+            for i = 1, #requests do
+                local parser = parsers[i]
+                if parser then
+                    table.insert(replies, parser(response.read(self)))
+                else
+                    table.insert(replies, response.read(self))
+                end
             end
 
             return replies
