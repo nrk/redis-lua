@@ -53,7 +53,7 @@ function response.read(client)
     local response_handler = protocol.prefixes[prefix]
 
     if not response_handler then 
-        error("Unknown response prefix: " .. prefix)
+        error('unknown response prefix: ' .. prefix)
     else
         return response_handler(client, res)
     end
@@ -74,9 +74,9 @@ function response.error(client, data)
     local err_line = data:sub(2)
 
     if err_line:sub(1, 3) == protocol.err then
-        error("Redis error: " .. err_line:sub(5))
+        error('redis error: ' .. err_line:sub(5))
     else
-        error("Redis error: " .. err_line)
+        error('redis error: ' .. err_line)
     end
 end
 
