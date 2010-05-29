@@ -12,46 +12,79 @@ local settings = {
     password = nil,
 }
 
-make_assertion("true", "'%s' to be true", function(a) return a == true end)
-make_assertion("false", "'%s' to be false", function(a) return a == false end)
 make_assertion("numeric", "'%s' to be a numeric value", function(a) 
     return type(tonumber(a)) == "number"
 end)
+
 make_assertion("table_values", "'%s' to have the same values as '%s'", function(a,b)
+    -- NOTE: the body of this function was taken and slightly adapted from 
+    --       Penlight (http://github.com/stevedonovan/Penlight)
     if #a ~= #b then return false end
-    for i,k in ipairs(a) do if k ~= b[i] then return false end end
+    local visited = {}
+    for i = 1,#a do
+        local val, gotcha = a[i], nil
+        for j = 1,#b do
+            if not visited[j] then
+                if val == b[j] then
+                    gotcha = j
+                    break
+                end
+            end
+        end
+        if not gotcha then return false end
+        visited[gotcha] = true
+    end
     return true
 end)
 
-local utils = {
-    get_kvs_table = function()
+function table.merge(self, tbl2)
+    local new_table = {}
+    for k,v in pairs(self) do new_table[k] = v end
+    for k,v in pairs(tbl2) do new_table[k] = v end
+    return new_table
+end
+
+function table.keys(self)
+    local keys = {}
+    for k, _ in pairs(self) do table.insert(keys, k) end
+    return keys
+end
+
+function table.values(self)
+    local values = {}
+    for _, v in pairs(self) do table.insert(values, v) end
+    return values
+end
+
+function table.contains(self, value)
+    for _, v in pairs(self) do
+        if v == value then return true end
+    end
+    return false
+end
+
+local shared = {
+    kvs_table = function()
         return {
             foo    = 'bar',
             hoge   = 'piyo',
             foofoo = 'barbar',
         }
     end,
-    get_lang_table = function()
+    kvs_ns_table = function()
+        return {
+            ['metavars:foo']    = 'bar',
+            ['metavars:hoge']   = 'piyo',
+            ['metavars:foofoo'] = 'barbar',
+        }
+    end,
+    lang_table = function()
         return { 
             italian  = "ciao",
             english  = "hello",
             japanese = "こんいちは！",
         }
     end,
-    table_values = function(tbl) 
-        local values = {}
-        for _, v in pairs(tbl) do
-            table.insert(values, v)
-        end
-        return values
-    end, 
-    table_keys = function(tbl) 
-        local keys = {}
-        for k, _ in pairs(tbl) do
-            table.insert(keys, k)
-        end
-        return keys
-    end, 
 }
 
 context("Redis commands", function() 
@@ -111,7 +144,7 @@ context("Redis commands", function()
         end)
 
         test("MSET (redis:set_multiple)", function()
-            local kvs = utils.get_kvs_table()
+            local kvs = shared.kvs_table()
 
             assert_true(redis:set_multiple(kvs))
             for k,v in pairs(kvs) do 
@@ -132,8 +165,8 @@ context("Redis commands", function()
         end)
 
         test("MGET (redis:get_multiple)", function() 
-            local kvs = utils.get_kvs_table()
-            local keys, values = utils.table_keys(kvs), utils.table_values(kvs)
+            local kvs = shared.kvs_table()
+            local keys, values = table.keys(kvs), table.values(kvs)
 
             assert_true(redis:set_multiple(kvs))
             assert_table_values(redis:get_multiple(unpack(keys)), values)
@@ -176,7 +209,7 @@ context("Redis commands", function()
         end)
 
         test("DEL (redis:delete)", function() 
-            redis:set_multiple(utils.get_kvs_table())
+            redis:set_multiple(shared.kvs_table())
 
             assert_equal(redis:delete('doesnotexist'), 0)
             assert_equal(redis:delete('foofoo'), 1)
@@ -197,6 +230,93 @@ context("Redis commands", function()
 
             redis:zset_add('fooZSet', 0, 'bar')
             assert_equal(redis:type('fooZSet'), 'zset')
+        end)
+    end)
+
+    context("Commands operating on the key space", function() 
+        test("KEYS (redis:keys)", function() 
+            local kvs_prefixed   = shared.kvs_ns_table()
+            local kvs_unprefixed = { aaa = 1, aba = 2, aca = 3 }
+            local kvs_all = table.merge(kvs_prefixed, kvs_unprefixed)
+
+            redis:set_multiple(kvs_all)
+
+            assert_empty(redis:keys('nokeys:*'))
+            assert_table_values(
+                table.values(redis:keys('*')), 
+                table.keys(kvs_all)
+            )
+            assert_table_values(
+                table.values(redis:keys('metavars:*')), 
+                table.keys(kvs_prefixed)
+            )
+            assert_table_values(
+                table.values(redis:keys('a?a')), 
+                table.keys(kvs_unprefixed)
+            )
+        end)
+
+        test("RANDOMKEY (redis:random_key)", function() 
+            local kvs = shared.kvs_table()
+
+            assert_nil(redis:random_key())
+            redis:set_multiple(kvs)
+            assert_true(table.contains(table.keys(kvs), redis:random_key()))
+        end)
+
+        test("RENAME (redis:rename)", function() 
+            local kvs = shared.kvs_table()
+            redis:set_multiple(kvs)
+
+            assert_true(redis:rename('hoge', 'hogehoge'))
+            assert_false(redis:exists('hoge'))
+            assert_equal(redis:get('hogehoge'), 'piyo')
+
+            -- rename overwrites existing keys
+            assert_true(redis:rename('foo', 'foofoo'))
+            assert_false(redis:exists('foo'))
+            assert_equal(redis:get('foofoo'), 'bar')
+
+            -- rename fails when the key does not exist
+            assert_error(function()
+                redis:rename('doesnotexist', 'fuga')
+            end)
+        end)
+
+        test("RENAMENX (redis:rename_preserve)", function() 
+            local kvs = shared.kvs_table()
+            redis:set_multiple(kvs)
+
+            assert_true(redis:rename_preserve('hoge', 'hogehoge'))
+            assert_false(redis:exists('hoge'))
+            assert_equal(redis:get('hogehoge'), 'piyo')
+
+            -- rename overwrites existing keys
+            assert_false(redis:rename_preserve('foo', 'foofoo'))
+            assert_true(redis:exists('foo'))
+
+            -- rename fails when the key does not exist
+            assert_error(function()
+                redis:rename_preserve('doesnotexist', 'fuga')
+            end)
+        end)
+
+        test("EXPIRE (redis:expire)", function() 
+            -- TODO: cannot sleep with standard lua functions
+        end)
+
+        test("EXPIREAT (redis:expire_at)", function() 
+            -- TODO: cannot sleep with standard lua functions
+        end)
+
+        test("TTL (redis:ttl)", function() 
+            -- TODO: cannot sleep with standard lua functions
+        end)
+
+        test("DBSIZE (redis:database_size)", function() 
+            assert_equal(redis:database_size(), 0)
+            redis:set_multiple(shared.kvs_table())
+            assert_greater_than(redis:database_size(), 0)
         end)
     end)
 
@@ -247,7 +367,6 @@ context("Redis commands", function()
     end)
 
     --[[  TODO: 
-      - commands operating on the key space
       - commands operating on lists
       - commands operating on sets
       - multiple databases handling commands
