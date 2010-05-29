@@ -365,9 +365,17 @@ redis_commands = {
             return keys
         end
     ),
-    random_key       = inline('RANDOMKEY'), 
+    random_key       = inline('RANDOMKEY', 
+        function(response)
+            if response == '' then
+                return nil
+            else
+                return response
+            end
+        end
+    ),
     rename           = inline('RENAME'), 
-    rename_preserve  = inline('RENAMENX'), 
+    rename_preserve  = inline('RENAMENX', toboolean), 
     expire           = inline('EXPIRE', toboolean), 
     expire_at        = inline('EXPIREAT', toboolean), 
     database_size    = inline('DBSIZE'), 
