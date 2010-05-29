@@ -1,6 +1,7 @@
 package.path = package.path .. ";../?.lua"
 
 require "luarocks.require"
+require 'base'
 require "telescope"
 require "redis"
 
@@ -13,11 +14,45 @@ local settings = {
 
 make_assertion("true", "'%s' to be true", function(a) return a == true end)
 make_assertion("false", "'%s' to be false", function(a) return a == false end)
+make_assertion("numeric", "'%s' to be a numeric value", function(a) 
+    return type(tonumber(a)) == "number"
+end)
 make_assertion("table_values", "'%s' to have the same values as '%s'", function(a,b)
     if #a ~= #b then return false end
     for i,k in ipairs(a) do if k ~= b[i] then return false end end
     return true
 end)
+
+local utils = {
+    get_kvs_table = function()
+        return {
+            foo    = 'bar',
+            hoge   = 'piyo',
+            foofoo = 'barbar',
+        }
+    end,
+    get_lang_table = function()
+        return { 
+            italian  = "ciao",
+            english  = "hello",
+            japanese = "こんいちは！",
+        }
+    end,
+    table_values = function(tbl) 
+        local values = {}
+        for _, v in pairs(tbl) do
+            table.insert(values, v)
+        end
+        return values
+    end, 
+    table_keys = function(tbl) 
+        local keys = {}
+        for k, _ in pairs(tbl) do
+            table.insert(keys, k)
+        end
+        return keys
+    end, 
+}
 
 context("Redis commands", function() 
     before(function()
@@ -46,125 +81,122 @@ context("Redis commands", function()
 
     context("Commands operating on string values", function() 
         test("SET (redis:set)", function() 
-            local k1 = "k1"
-
-            assert_true(redis:set(k1, 1))
-            assert_true(redis:set(k1, 2))
-        end)
-
-        test("SETNX (redis:set_preserve)", function() 
-            local k1 = "k1"
-
-            assert_true(redis:set_preserve(k1, 1))
-            assert_false(redis:set_preserve(k1, 2))
-        end)
-
-        test("MSET (redis:set_multiple)", function()
-            local kvs = { 
-                italian  = "ciao", 
-                english  = "hello", 
-                japanese = "こんいちは！", 
-            }
-
-            assert_true(redis:set_multiple(kvs))
-            assert_true(redis:set_multiple('a', 1, 'b', 2, 'c', 3))
-        end)
-
-        test("MSETNX (redis:set_multiple_preserve)", function()
-           assert_true(redis:set_multiple_preserve({ a = 1, b = 2, c = 3 }))
-           assert_false(redis:set_multiple_preserve('d', 4, 'a', 'dup', 'e', 5))
+            assert_true(redis:set('foo', 'bar'))
+            assert_equal(redis:get('foo'), 'bar')
         end)
 
         test("GET (redis:get)", function() 
-            local k1, v1= "k1", "v1"
+            redis:set('foo', 'bar')
 
-            assert_nil(redis:get(k1))
-            assert_true(redis:set(k1, v1))
-            assert_equal(redis:get(k1), v1)
-        end)
+            assert_equal(redis:get('foo'), 'bar')
+            assert_nil(redis:get('hoge'))
 
-        test("MGET (redis:get_multiple)", function() 
-            local keys   = { "italian", "english", "japanese" }
-            local values = { "ciao!", "hello!", "こんいちは！" }
-
-            for i,k in ipairs(keys) do redis:set(k,values[i]) end
-            local mget_values = redis:get_multiple(unpack(keys))
-
-            assert_table_values(mget_values, values)
-        end)
-
-        test("GETSET (redis:get_set)", function() 
-            local k1, v1, v2 = "k1", "v1", "v2"
-
-            assert_nil(redis:get_set(k1, v1))
-            assert_equal(redis:get_set(k1, v2), v1)
-            assert_equal(redis:get_set(k1, v1), v2)
-        end)
-
-        test("INCR (redis:increment)", function() 
-            local k1 = "k1"
-
-            assert_true(redis:set(k1, -2))
-            assert_equal(redis:increment(k1), -1)
-            assert_equal(redis:increment(k1), 0)
-            assert_equal(redis:increment(k1), 1)
-        end)
-
-        test("INCRBY (redis:increment_by)", function() 
-            local k1 = "k1"
-
-            assert_true(redis:set(k1, 0))
-            assert_equal(redis:increment_by(k1, 10), 10)
-            assert_equal(redis:increment_by(k1, 20), 30)
-            assert_equal(redis:increment_by(k1, -50), -20)
-        end)
-
-        test("DECR (redis:decrement)", function()  
-            local k1 = "k1"
-
-            assert_true(redis:set(k1, 1))
-            assert_equal(redis:decrement(k1), 0)
-            assert_equal(redis:decrement(k1), -1)
-            assert_equal(redis:decrement(k1), -2)
-        end)
-
-        test("DECRBY (redis:decrement_by)", function() 
-            local k1 = "k1"
-
-            assert_true(redis:set(k1, 0))
-            assert_equal(redis:decrement_by(k1, 10), -10)
-            assert_equal(redis:decrement_by(k1, 20), -30)
-            assert_equal(redis:decrement_by(k1, -50), 20)
+            assert_error(function()
+                redis:push_tail('metavars', 'foo')
+                redis:get('metavars')
+            end)
         end)
 
         test("EXISTS (redis:exists)", function() 
-            local k1, k2 = "k1", "k2"
+            redis:set('foo', 'bar')
 
-            assert_true(redis:set(k1, 0))
-            assert_true(redis:exists(k1))
-            assert_false(redis:exists(k2))
+            assert_true(redis:exists('foo'))
+            assert_false(redis:exists('hoge'))
+        end)
+
+        test("SETNX (redis:set_preserve)", function() 
+            assert_true(redis:set_preserve('foo', 'bar'))
+            assert_false(redis:set_preserve('foo', 'baz'))
+            assert_equal(redis:get('foo'), 'bar')
+        end)
+
+        test("MSET (redis:set_multiple)", function()
+            local kvs = utils.get_kvs_table()
+
+            assert_true(redis:set_multiple(kvs))
+            for k,v in pairs(kvs) do 
+                assert_equal(redis:get(k), v)
+            end
+
+            assert_true(redis:set_multiple('a', '1', 'b', '2', 'c', '3'))
+            assert_equal(redis:get('a'), '1')
+            assert_equal(redis:get('b'), '2')
+            assert_equal(redis:get('c'), '3')
+        end)
+
+        test("MSETNX (redis:set_multiple_preserve)", function()
+           assert_true(redis:set_multiple_preserve({ a = '1', b = '2' }))
+           assert_false(redis:set_multiple_preserve({ c = '3', a = '100'}))
+           assert_equal(redis:get('a'), '1')
+           assert_equal(redis:get('b'), '2')
+        end)
+
+        test("MGET (redis:get_multiple)", function() 
+            local kvs = utils.get_kvs_table()
+            local keys, values = utils.table_keys(kvs), utils.table_values(kvs)
+
+            assert_true(redis:set_multiple(kvs))
+            assert_table_values(redis:get_multiple(unpack(keys)), values)
+        end)
+
+        test("GETSET (redis:get_set)", function() 
+            assert_nil(redis:get_set('foo', 'bar'))
+            assert_equal(redis:get_set('foo', 'barbar'), 'bar')
+            assert_equal(redis:get_set('foo', 'baz'), 'barbar')
+        end)
+
+        test("INCR (redis:increment)", function() 
+            assert_equal(redis:increment('foo'), 1)
+            assert_equal(redis:increment('foo'), 2)
+
+            assert_true(redis:set('hoge', 'piyo'))
+            assert_equal(redis:increment('hoge'), 1)
+        end)
+
+        test("INCRBY (redis:increment_by)", function() 
+            redis:set('foo', 2)
+            assert_equal(redis:increment_by('foo', 20), 22)
+            assert_equal(redis:increment_by('foo', -12), 10)
+            assert_equal(redis:increment_by('foo', -110), -100)
+        end)
+
+        test("DECR (redis:decrement)", function()  
+            assert_equal(redis:decrement('foo'), -1)
+            assert_equal(redis:decrement('foo'), -2)
+
+            assert_true(redis:set('hoge', 'piyo'))
+            assert_equal(redis:decrement('hoge'), -1)
+        end)
+
+        test("DECRBY (redis:decrement_by)", function() 
+            redis:set('foo', -2)
+            assert_equal(redis:decrement_by('foo', 20), -22)
+            assert_equal(redis:decrement_by('foo', -12), -10)
+            assert_equal(redis:decrement_by('foo', -110), 100)
         end)
 
         test("DEL (redis:delete)", function() 
-            local k1, k2, k3 = "k1", "k2", "k3"
+            redis:set_multiple(utils.get_kvs_table())
 
-            assert_true(redis:set_multiple({ k1 = 1, k2 = 2, k3 = 3}))
-            assert_equal(redis:delete('k4'), 0)
-            assert_equal(redis:delete('k1'), 1)
-            assert_equal(redis:delete('k2', 'k3'), 2)
+            assert_equal(redis:delete('doesnotexist'), 0)
+            assert_equal(redis:delete('foofoo'), 1)
+            assert_equal(redis:delete('foo', 'hoge', 'doesnotexist'), 2)
         end)
 
         test("TYPE (redis:type)", function() 
-            local k1, k2, k3, k4 = "k1", "k2", "k3", "k4"
+            assert_equal(redis:type('doesnotexist'), 'none')
 
-            assert_true(redis:set(k1, "string"))
-            assert_true(redis:push_tail(k2, 0))
-            assert_equal(redis:set_add(k3, 0), 1)
+            redis:set('fooString', 'bar')
+            assert_equal(redis:type('fooString'), 'string')
 
-            assert_equal(redis:type(k1), "string")
-            assert_equal(redis:type(k2), "list")
-            assert_equal(redis:type(k3), "set")
-            assert_equal(redis:type(k4), "none")
+            redis:push_tail('fooList', 'bar')
+            assert_equal(redis:type('fooList'), 'list')
+
+            redis:set_add('fooSet', 'bar')
+            assert_equal(redis:type('fooSet'), 'set')
+
+            redis:zset_add('fooZSet', 0, 'bar')
+            assert_equal(redis:type('fooZSet'), 'zset')
         end)
     end)
 
