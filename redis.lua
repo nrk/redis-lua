@@ -295,7 +295,7 @@ function connect(...)
                 __index = function(env, name) 
                     local cmd = redis_commands[name]
                     if cmd == nil then 
-                        error('unknown redis command', 2)
+                        error('unknown redis command: ' .. name, 2)
                     end
                     return function(...) 
                         local reply = cmd(self, ...)
