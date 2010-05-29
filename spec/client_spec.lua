@@ -5,10 +5,10 @@ require "telescope"
 require "redis"
 
 local settings = {
-    host    = "127.0.0.1",
-    port    = 6379, 
-    version = 1.001,
-    multiple_dbs = false, 
+    host     = '127.0.0.1',
+    port     = 6379,
+    database = 15,
+    password = nil,
 }
 
 make_assertion("true", "'%s' to be true", function(a) return a == true end)
@@ -19,12 +19,16 @@ make_assertion("table_values", "'%s' to have the same values as '%s'", function(
     return true
 end)
 
-context("Redis client", function() 
-    it("Connects to " .. settings.host .. ":" .. settings.port, function()
+context("Redis commands", function() 
+    before(function()
         redis = Redis.connect(settings.host, settings.port)
-        -- 
-        assert_not_nil(redis)
-        assert_not_nil(redis.socket)
+        if settings.password then redis:auth(settings.password) end
+        if settings.database then redis:select_database(settings.database) end
+        redis:flush_database()
+    end)
+
+    after(function()
+        redis:quit()
     end)
 
     context("Miscellaneous commands", function() 
@@ -33,21 +37,14 @@ context("Redis client", function()
         end)
 
         test("ECHO (redis:echo)", function() 
-            local echo_ascii = "Can you hear me?"
-            assert_equal(redis:echo(echo_ascii), echo_ascii)
+            local str_ascii, str_utf8 = "Can you hear me?", "聞こえますか？"
 
-            local echo_utf8  = "聞こえますか？"
-            assert_equal(redis:echo(echo_utf8), echo_utf8)
+            assert_equal(redis:echo(str_ascii), str_ascii)
+            assert_equal(redis:echo(str_utf8), str_utf8)
         end)
-
-        --TODO: auth
     end)
 
     context("Commands operating on string values", function() 
-        before(function()
-            redis:flush_databases()
-        end)
-
         test("SET (redis:set)", function() 
             local k1 = "k1"
 
@@ -149,11 +146,12 @@ context("Redis client", function()
         end)
 
         test("DEL (redis:delete)", function() 
-            local k1, k2 = "k1", "k2"
+            local k1, k2, k3 = "k1", "k2", "k3"
 
-            assert_true(redis:set(k1, 0))
-            assert_true(redis:delete(k1))
-            assert_false(redis:delete(k2))
+            assert_true(redis:set_multiple({ k1 = 1, k2 = 2, k3 = 3}))
+            assert_equal(redis:delete('k4'), 0)
+            assert_equal(redis:delete('k1'), 1)
+            assert_equal(redis:delete('k2', 'k3'), 2)
         end)
 
         test("TYPE (redis:type)", function() 
@@ -174,8 +172,6 @@ context("Redis client", function()
         -- TODO: missing tests for params GET and BY
 
         before(function()
-            redis:flush_databases()
-
             -- TODO: code duplication!
             list01, list01_values = "list01", { "4","2","3","5","1" }
             for _,v in ipairs(list01_values) do redis:push_tail(list01,v) end
@@ -226,8 +222,4 @@ context("Redis client", function()
       - persistence control commands
       - remote server control commands
     ]]
-
-    test("QUIT (redis:quit) closes the connection to the server", function() 
-        assert_nil(redis:quit())
-    end)
 end)
