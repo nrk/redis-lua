@@ -182,7 +182,7 @@ function request.multibulk(client, command, ...)
         end
     else
         arguments = args
-        args_len  = args_len + argn
+        args_len  = args_len + #args
     end
  
     table.insert(buffer, '*' .. tostring(args_len) .. protocol.newline)
