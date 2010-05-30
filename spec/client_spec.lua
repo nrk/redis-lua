@@ -652,9 +652,26 @@ context("Redis commands", function()
         end)
     end)
 
+    context("Persistence control commands", function() 
+        test("SAVE (redis:save)", function() 
+            assert_true(redis:save())
+        end)
+
+        test("BGSAVE (redis:background_save)", function() 
+            assert_equal(redis:background_save(), 'Background saving started')
+        end)
+
+        test("BGREWRITEAOF (redis:background_rewrite_aof)", function() 
+            assert_equal(redis:background_rewrite_aof(), 'Background append only file rewriting started')
+        end)
+
+        test("LASTSAVE (redis:last_save)", function() 
+            assert_greater_than(tonumber(redis:last_save()), 0)
+        end)
+    end)
+
     --[[  TODO: 
       - commands operating on sets
       - commands operating on zsets
-      - persistence control commands
     ]]
 end)
