@@ -8,7 +8,7 @@ require "redis"
 local settings = {
     host     = '127.0.0.1',
     port     = 6379,
-    database = 15,
+    database = 14,
     password = nil,
 }
 
@@ -595,9 +595,41 @@ context("Redis commands", function()
         end)
     end)
 
+    context("Multiple databases handling commands", function() 
+        test("SELECT (redis:select_database)", function() 
+            if not settings.database then return end
+
+            assert_true(redis:select_database(0))
+            assert_true(redis:select_database(settings.database))
+            assert_error(function() redis:select_database(100) end)
+            assert_error(function() redis:select_database(-1) end)
+        end)
+
+        test("FLUSHDB (redis:flush_database)", function() 
+            assert_true(redis:flush_database())
+        end)
+
+        test("MOVE (redis:move_key)", function() 
+            if not settings.database then return end
+
+            local other_db = settings.database + 1
+            redis:set('foo', 'bar')
+            redis:select_database(other_db)
+            redis:flush_database()
+            redis:select_database(settings.database)
+
+            assert_true(redis:move_key('foo', other_db))
+            assert_false(redis:move_key('foo', other_db))
+            assert_false(redis:move_key('doesnotexist', other_db))
+
+            redis:set('hoge', 'piyo')
+            assert_error(function() redis:move_key('hoge', 100) end)
+        end)
+    end)
+
     --[[  TODO: 
       - commands operating on sets
-      - multiple databases handling commands
+      - commands operating on zsets
       - persistence control commands
       - remote server control commands
     ]]
