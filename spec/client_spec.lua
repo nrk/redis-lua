@@ -627,10 +627,34 @@ context("Redis commands", function()
         end)
     end)
 
+    context("Remote server control commands", function() 
+        test("INFO (redis:info)", function() 
+            local server_info = redis:info()
+            assert_not_nil(server_info.redis_version)
+            assert_type(server_info, 'table')
+            assert_greater_than(tonumber(server_info.uptime_in_seconds), 0)
+            assert_greater_than(tonumber(server_info.total_connections_received), 0)
+        end)
+
+        test("SLAVEOF (redis:slave_of)", function() 
+            local master_host, master_port = 'www.google.com', 80
+
+            assert_true(redis:slave_of(master_host, master_port))
+            local server_info = redis:info()
+            assert_equal(server_info.role, 'slave')
+            assert_equal(server_info.master_host, master_host)
+            assert_equal(server_info.master_port, tostring(master_port))
+
+            -- SLAVE OF NO ONE (explicit)
+            assert_true(redis:slave_of('NO', 'ONE'))
+            local server_info = redis:info()
+            assert_equal(server_info.role, 'master')
+        end)
+    end)
+
     --[[  TODO: 
       - commands operating on sets
       - commands operating on zsets
       - persistence control commands
-      - remote server control commands
     ]]
 end)
