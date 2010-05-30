@@ -63,6 +63,25 @@ function table.contains(self, value)
     return false
 end
 
+function table.slice(self, first, length)
+    -- TODO: must be improved
+    local new_table = {}
+    for i = first, first + length - 1 do
+        table.insert(new_table, self[i])
+    end
+    return new_table
+end
+
+local utils = {
+    push_tail_return = function(client, key, values, wipe)
+        if wipe then client:delete(key) end
+        for _, v in ipairs(values) do
+            client:push_tail(key, v)
+        end
+        return values
+    end,
+}
+
 local shared = {
     kvs_table = function()
         return {
@@ -84,6 +103,9 @@ local shared = {
             english  = "hello",
             japanese = "こんいちは！",
         }
+    end,
+    numbers = function()
+        return { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' }
     end,
 }
 
@@ -320,6 +342,213 @@ context("Redis commands", function()
         end)
     end)
 
+    context("Commands operating on lists", function() 
+        test("RPUSH (redis:push_tail)", function() 
+            assert_true(redis:push_tail('metavars', 'foo'))
+            assert_true(redis:push_tail('metavars', 'hoge'))
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:push_tail('foo', 'baz')
+            end)
+        end)
+
+        test("LPUSH (redis:push_head)", function() 
+            assert_true(redis:push_head('metavars', 'foo'))
+            assert_true(redis:push_head('metavars', 'hoge'))
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:push_head('foo', 'baz')
+            end)
+        end)
+
+        test("LLEN (redis:list_length)", function() 
+            local kvs = shared.kvs_table()
+            for _, v in pairs(kvs) do
+                redis:push_tail('metavars', v)
+            end
+
+            assert_equal(redis:list_length('metavars'), 3)
+            assert_equal(redis:list_length('doesnotexist'), 0)
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:list_length('foo')
+            end)
+        end)
+
+        test("LRANGE (redis:list_range)", function() 
+            local numbers = utils.push_tail_return(redis, 'numbers', shared.numbers())
+
+            assert_table_values(redis:list_range('numbers', 0, 3), table.slice(numbers, 1, 4))
+            assert_table_values(redis:list_range('numbers', 4, 8), table.slice(numbers, 5, 5))
+            assert_table_values(redis:list_range('numbers', 0, 0), table.slice(numbers, 1, 1))
+            assert_empty(redis:list_range('numbers', 1, 0))
+            assert_table_values(redis:list_range('numbers', 0, -1), numbers)
+            assert_table_values(redis:list_range('numbers', 5, -5), { '5' })
+            assert_empty(redis:list_range('numbers', 7, -5))
+            assert_table_values(redis:list_range('numbers', -5, -2), table.slice(numbers, 6, 4))
+            assert_table_values(redis:list_range('numbers', -100, 100), numbers)
+        end)
+
+        test("LTRIM (redis:list_trim)", function() 
+            local numbers = utils.push_tail_return(redis, 'numbers', shared.numbers(), true)
+            assert_true(redis:list_trim('numbers', 0, 2))
+            assert_table_values(redis:list_range('numbers', 0, -1), table.slice(numbers, 1, 3))
+
+            local numbers = utils.push_tail_return(redis, 'numbers', shared.numbers(), true)
+            assert_true(redis:list_trim('numbers', 5, 9))
+            assert_table_values(redis:list_range('numbers', 0, -1), table.slice(numbers, 6, 5))
+
+            local numbers = utils.push_tail_return(redis, 'numbers', shared.numbers(), true)
+            assert_true(redis:list_trim('numbers', 0, -6))
+            assert_table_values(redis:list_range('numbers', 0, -1), table.slice(numbers, 1, 5))
+
+            local numbers = utils.push_tail_return(redis, 'numbers', shared.numbers(), true)
+            assert_true(redis:list_trim('numbers', -5, -3))
+            assert_table_values(redis:list_range('numbers', 0, -1), table.slice(numbers, 6, 3))
+
+            local numbers = utils.push_tail_return(redis, 'numbers', shared.numbers(), true)
+            assert_true(redis:list_trim('numbers', -100, 100))
+            assert_table_values(redis:list_range('numbers', 0, -1), numbers)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:list_trim('foo', 0, 1)
+            end)
+        end)
+
+        test("LINDEX (redis:list_index)", function() 
+            local numbers = utils.push_tail_return(redis, 'numbers', shared.numbers())
+
+            assert_equal(redis:list_index('numbers', 0), numbers[1])
+            assert_equal(redis:list_index('numbers', 5), numbers[6])
+            assert_equal(redis:list_index('numbers', 9), numbers[10])
+            assert_nil(redis:list_index('numbers', 100))
+
+            assert_equal(redis:list_index('numbers', -0), numbers[1])
+            assert_equal(redis:list_index('numbers', -1), numbers[10])
+            assert_equal(redis:list_index('numbers', -3), numbers[8])
+            assert_nil(redis:list_index('numbers', -100))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:list_index('foo', 0)
+            end)
+        end)
+
+        test("LSET (redis:list_set)", function() 
+            utils.push_tail_return(redis, 'numbers', shared.numbers())
+
+            assert_true(redis:list_set('numbers', 5, -5))
+            assert_equal(redis:list_index('numbers', 5), '-5')
+
+            assert_error(function()
+                redis:list_set('numbers', 99, 99)
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:list_set('foo', 0, 0)
+            end)
+        end)
+
+        test("LREM (redis:list_remove)", function() 
+            local mixed = { '0', '_', '2', '_', '4', '_', '6', '_' }
+
+            utils.push_tail_return(redis, 'mixed', mixed, true)
+            assert_equal(redis:list_remove('mixed', 2, '_'), 2)
+            assert_table_values(redis:list_range('mixed', 0, -1), { '0', '2', '4', '_', '6', '_' })
+
+            utils.push_tail_return(redis, 'mixed', mixed, true)
+            assert_equal(redis:list_remove('mixed', 0, '_'), 4)
+            assert_table_values(redis:list_range('mixed', 0, -1), { '0', '2', '4', '6' })
+
+            utils.push_tail_return(redis, 'mixed', mixed, true)
+            assert_equal(redis:list_remove('mixed', -2, '_'), 2)
+            assert_table_values(redis:list_range('mixed', 0, -1), { '0', '_', '2', '_', '4', '6' })
+
+            utils.push_tail_return(redis, 'mixed', mixed, true)
+            assert_equal(redis:list_remove('mixed', 2, '|'), 0)
+            assert_table_values(redis:list_range('mixed', 0, -1), mixed)
+
+            assert_equal(redis:list_remove('doesnotexist', 2, '_'), 0)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:list_remove('foo', 0, 0)
+            end)
+        end)
+
+        test("LPOP (redis:pop_first)", function() 
+            local numbers = utils.push_tail_return(redis, 'numbers', { '0', '1', '2', '3', '4' })
+
+            assert_equal(redis:pop_first('numbers'), numbers[1])
+            assert_equal(redis:pop_first('numbers'), numbers[2])
+            assert_equal(redis:pop_first('numbers'), numbers[3])
+
+            assert_table_values(redis:list_range('numbers', 0, -1), { '3', '4' })
+
+            redis:pop_first('numbers')
+            redis:pop_first('numbers')
+            assert_nil(redis:pop_first('numbers'))
+
+            assert_nil(redis:pop_first('doesnotexist'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:pop_first('foo')
+            end)
+        end)
+
+        test("RPOP (redis:pop_last)", function() 
+            local numbers = utils.push_tail_return(redis, 'numbers', { '0', '1', '2', '3', '4' })
+
+            assert_equal(redis:pop_last('numbers'), numbers[5])
+            assert_equal(redis:pop_last('numbers'), numbers[4])
+            assert_equal(redis:pop_last('numbers'), numbers[3])
+
+            assert_table_values(redis:list_range('numbers', 0, -1), { '0', '1' })
+
+            redis:pop_last('numbers')
+            redis:pop_last('numbers')
+            assert_nil(redis:pop_last('numbers'))
+
+            assert_nil(redis:pop_last('doesnotexist'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:pop_last('foo')
+            end)
+        end)
+
+        test("RPOPLPUSH (redis:pop_last_push_head)", function() 
+            local numbers = utils.push_tail_return(redis, 'numbers', { '0', '1', '2' }, true)
+            assert_equal(redis:list_length('temporary'), 0)
+            assert_equal(redis:pop_last_push_head('numbers', 'temporary'), '2')
+            assert_equal(redis:pop_last_push_head('numbers', 'temporary'), '1')
+            assert_equal(redis:pop_last_push_head('numbers', 'temporary'), '0')
+            assert_equal(redis:list_length('numbers'), 0)
+            assert_equal(redis:list_length('temporary'), 3)
+
+            local numbers = utils.push_tail_return(redis, 'numbers', { '0', '1', '2' }, true)
+            redis:pop_last_push_head('numbers', 'numbers')
+            redis:pop_last_push_head('numbers', 'numbers')
+            redis:pop_last_push_head('numbers', 'numbers')
+            assert_table_values(redis:list_range('numbers', 0, -1), numbers)
+
+            assert_nil(redis:pop_last_push_head('doesnotexist1', 'doesnotexist2'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:pop_last_push_head('foo', 'hoge')
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:pop_last_push_head('temporary', 'foo')
+            end)
+        end)
+    end)
+
     context("Sorting", function() 
         -- TODO: missing tests for params GET and BY
 
@@ -367,7 +596,6 @@ context("Redis commands", function()
     end)
 
     --[[  TODO: 
-      - commands operating on lists
       - commands operating on sets
       - multiple databases handling commands
       - persistence control commands
