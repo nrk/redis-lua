@@ -423,7 +423,7 @@ redis_commands = {
 
     -- multiple databases handling commands
     select_database  = inline('SELECT'), 
-    move_key         = inline('MOVE'), 
+    move_key         = inline('MOVE', toboolean), 
     flush_database   = inline('FLUSHDB'), 
     flush_databases  = inline('FLUSHALL'), 
 
