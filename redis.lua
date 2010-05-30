@@ -392,7 +392,7 @@ redis_commands = {
     list_remove   = bulk('LREM'), 
     pop_first     = inline('LPOP'), 
     pop_last      = inline('RPOP'), 
-    pop_last_push_head = bulk('RPOPLPUSH'), 
+    pop_last_push_head = inline('RPOPLPUSH'), 
 
     -- commands operating on sets
     set_add                 = bulk('SADD'), 
