@@ -900,11 +900,46 @@ context("Redis commands", function()
         end)
 
         test("ZREVRANGE (redis:zset_reverse_range)", function() 
-            -- TODO
+            local zset = utils.zset_add_return(redis, 'zset', shared.zset_sample())
+
+            assert_table_values(redis:zset_reverse_range('zset', 0, 3), { 'f', 'e', 'd', 'c' })
+            assert_table_values(redis:zset_reverse_range('zset', 0, 0), { 'f' })
+            assert_empty(redis:zset_reverse_range('zset', 1, 0))
+            assert_table_values(redis:zset_reverse_range('zset', 0, -1), table.keys(zset))
+            assert_table_values(redis:zset_reverse_range('zset', 3, -3), { 'c' })
+            assert_empty(redis:zset_reverse_range('zset', 5, -3))
+            assert_table_values(redis:zset_reverse_range('zset', -100, 100), table.keys(zset))
+
+            -- TODO: should return a kind of tuple when using 'withscores'
+            assert_table_values(
+                redis:zset_reverse_range('zset', 0, 2, 'withscores'),
+                { 'f', '30', 'e', '20', 'd', '20' }
+            )
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_reverse_range('foo', 0, -1)
+            end)
         end)
 
         test("ZRANGEBYSCORE (redis:zset_range_by_score)", function() 
-            -- TODO
+            local zset = utils.zset_add_return(redis, 'zset', shared.zset_sample())
+
+            assert_table_values(redis:zset_range_by_score('zset', -10, -10), { 'a' })
+            assert_table_values(redis:zset_range_by_score('zset', 10, 30), { 'c', 'd', 'e', 'f' })
+            assert_table_values(redis:zset_range_by_score('zset', 20, 20), { 'd', 'e' })
+            assert_empty(redis:zset_range_by_score('zset', 30, 0))
+
+            -- TODO: should return a kind of tuple when using 'withscores'
+            assert_table_values(
+                redis:zset_range_by_score('zset', 10, 20, 'withscores'),
+                { 'c', '10', 'd', '20', 'e', '20' }
+            )
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_reverse_range_by_score('foo', 0, -1)
+            end)
         end)
 
         test("ZCARD (redis:zset_cardinality)", function() 
@@ -928,11 +963,39 @@ context("Redis commands", function()
         end)
 
         test("ZSCORE (redis:zset_score)", function() 
-            -- TODO
+            utils.zset_add_return(redis, 'zset', shared.zset_sample())
+
+            assert_equal(redis:zset_score('zset', 'a'), '-10')
+            assert_equal(redis:zset_score('zset', 'c'), '10')
+            assert_equal(redis:zset_score('zset', 'e'), '20')
+
+            assert_nil(redis:zset_score('zset', 'x'))
+            assert_nil(redis:zset_score('doesnotexist', 'a'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_score('foo', 'a')
+            end)
         end)
 
         test("ZREMRANGEBYSCORE (redis:zset_remove_range_by_score)", function() 
-            -- TODO
+            utils.zset_add_return(redis, 'zset', shared.zset_sample())
+
+            assert_equal(redis:zset_remove_range_by_score('zset', -10, 0), 2)
+            assert_table_values(redis:zset_range('zset', 0, -1), { 'c', 'd', 'e', 'f' })
+
+            assert_equal(redis:zset_remove_range_by_score('zset', 10, 10), 1)
+            assert_table_values(redis:zset_range('zset', 0, -1), { 'd', 'e', 'f' })
+
+            assert_equal(redis:zset_remove_range_by_score('zset', 100, 100), 0)
+
+            assert_equal(redis:zset_remove_range_by_score('zset', 0, 100), 3)
+            assert_equal(redis:zset_remove_range_by_score('zset', 0, 100), 0)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_remove_range_by_score('foo', 0, 0)
+            end)
         end)
     end)
 
