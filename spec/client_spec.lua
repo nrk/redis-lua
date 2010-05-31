@@ -87,6 +87,13 @@ local utils = {
         end
         return values
     end,
+    zset_add_return = function(client, key, values, wipe)
+        if wipe then client:delete(key) end
+        for k, v in pairs(values) do
+            client:zset_add(key, v, k)
+        end
+        return values
+    end,
 }
 
 local shared = {
@@ -113,6 +120,9 @@ local shared = {
     end,
     numbers = function()
         return { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' }
+    end,
+    zset_sample = function()
+        return { a = -10, b = 0, c = 10, d = 20, e = 20, f = 30 }
     end,
 }
 
@@ -820,6 +830,112 @@ context("Redis commands", function()
         end)
     end)
 
+    context("Commands operating on zsets", function() 
+        test("ZADD (redis:zset_add)", function() 
+            assert_true(redis:zset_add('zset', 0, 'a'))
+            assert_true(redis:zset_add('zset', 1, 'b'))
+            assert_true(redis:zset_add('zset', -1, 'c'))
+
+            assert_false(redis:zset_add('zset', 2, 'b'))
+            assert_false(redis:zset_add('zset', -22, 'b'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_add('foo', 0, 'a')
+            end)
+        end)
+
+        test("ZINCRBY (redis:zset_increment_by)", function() 
+            assert_equal(redis:zset_increment_by('doesnotexist', 1, 'foo'), '1')
+            assert_equal(redis:type('doesnotexist'), 'zset')
+
+            utils.zset_add_return(redis, 'zset', shared.zset_sample())
+            assert_equal(redis:zset_increment_by('zset', 5, 'a'), '-5')
+            assert_equal(redis:zset_increment_by('zset', 1, 'b'), '1')
+            assert_equal(redis:zset_increment_by('zset', 0, 'c'), '10')
+            assert_equal(redis:zset_increment_by('zset', -20, 'd'), '0')
+            assert_equal(redis:zset_increment_by('zset', 2, 'd'), '2')
+            assert_equal(redis:zset_increment_by('zset', -30, 'e'), '-10')
+            assert_equal(redis:zset_increment_by('zset', 1, 'x'), '1')
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_increment_by('foo', 1, 'a')
+            end)
+        end)
+
+        test("ZREM (redis:zset_remove)", function() 
+            utils.zset_add_return(redis, 'zset', shared.zset_sample())
+
+            assert_true(redis:zset_remove('zset', 'a'))
+            assert_false(redis:zset_remove('zset', 'x'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_remove('foo', 'bar')
+            end)
+        end)
+
+        test("ZRANGE (redis:zset_range)", function() 
+            local zset = utils.zset_add_return(redis, 'zset', shared.zset_sample())
+
+            assert_table_values(redis:zset_range('zset', 0, 3), { 'a', 'b', 'c', 'd' })
+            assert_table_values(redis:zset_range('zset', 0, 0), { 'a' })
+            assert_empty(redis:zset_range('zset', 1, 0))
+            assert_table_values(redis:zset_range('zset', 0, -1), table.keys(zset))
+            assert_table_values(redis:zset_range('zset', 3, -3), { 'd' })
+            assert_empty(redis:zset_range('zset', 5, -3))
+            assert_table_values(redis:zset_range('zset', -100, 100), table.keys(zset))
+
+            -- TODO: should return a kind of tuple when using 'withscores'
+            assert_table_values(
+                redis:zset_range('zset', 0, 2, 'withscores'),
+                { 'a', '-10', 'b', '0', 'c', '10' }
+            )
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_range('foo', 0, -1)
+            end)
+        end)
+
+        test("ZREVRANGE (redis:zset_reverse_range)", function() 
+            -- TODO
+        end)
+
+        test("ZRANGEBYSCORE (redis:zset_range_by_score)", function() 
+            -- TODO
+        end)
+
+        test("ZCARD (redis:zset_cardinality)", function() 
+            local zset = utils.zset_add_return(redis, 'zset', shared.zset_sample())
+
+            assert_equal(redis:zset_cardinality('zset'), #table.keys(zset))
+
+            redis:zset_remove('zset', 'a')
+            assert_equal(redis:zset_cardinality('zset'), #table.keys(zset) - 1)
+
+            redis:zset_add('zsetB', 0, 'a')
+            redis:zset_remove('zsetB', 'a')
+            assert_equal(redis:zset_cardinality('zsetB'), 0)
+
+            assert_equal(redis:zset_cardinality('doesnotexist'), 0)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zset_cardinality('foo')
+            end)
+        end)
+
+        test("ZSCORE (redis:zset_score)", function() 
+            -- TODO
+        end)
+
+        test("ZREMRANGEBYSCORE (redis:zset_remove_range_by_score)", function() 
+            -- TODO
+        end)
+    end)
+
     context("Sorting", function() 
         -- TODO: missing tests for params GET and BY
 
@@ -940,8 +1056,4 @@ context("Redis commands", function()
             assert_greater_than(tonumber(redis:last_save()), 0)
         end)
     end)
-
-    --[[  TODO: 
-      - commands operating on zsets
-    ]]
 end)
