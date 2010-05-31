@@ -94,6 +94,9 @@ local utils = {
         end
         return values
     end,
+    sleep = function(sec)
+        socket.select(nil, nil, sec)
+    end,
 }
 
 local shared = {
@@ -125,6 +128,8 @@ local shared = {
         return { a = -10, b = 0, c = 10, d = 20, e = 20, f = 30 }
     end,
 }
+
+-- ------------------------------------------------------------------------- --
 
 context("Redis commands", function() 
     before(function()
@@ -340,16 +345,41 @@ context("Redis commands", function()
             end)
         end)
 
+        test("TTL (redis:time_to_live)", function() 
+            redis:set('foo', 'bar')
+            assert_equal(redis:time_to_live('foo'), -1)
+
+            assert_true(redis:expire('foo', 5))
+            assert_equal(redis:time_to_live('foo'), 5)
+        end)
+
         test("EXPIRE (redis:expire)", function() 
-            -- TODO: cannot sleep with standard lua functions
+            redis:set('foo', 'bar')
+            assert_true(redis:expire('foo', 1))
+            assert_true(redis:exists('foo'))
+            assert_equal(redis:time_to_live('foo'), 1)
+            utils.sleep(2)
+            assert_false(redis:exists('foo'))
+
+            redis:set('foo', 'bar')
+            assert_true(redis:expire('foo', 100))
+            utils.sleep(3)
+            assert_equal(redis:time_to_live('foo'), 97)
+
+            assert_true(redis:expire('foo', -100))
+            assert_false(redis:exists('foo'))
         end)
 
         test("EXPIREAT (redis:expire_at)", function() 
-            -- TODO: cannot sleep with standard lua functions
-        end)
+            redis:set('foo', 'bar')
+            assert_true(redis:expire_at('foo', os.time() + 2))
+            assert_equal(redis:time_to_live('foo'), 2)
+            utils.sleep(3)
+            assert_false(redis:exists('foo'))
 
-        test("TTL (redis:ttl)", function() 
-            -- TODO: cannot sleep with standard lua functions
+            redis:set('foo', 'bar')
+            assert_true(redis:expire_at('foo', os.time() - 100))
+            assert_false(redis:exists('foo'))
         end)
 
         test("DBSIZE (redis:database_size)", function() 
