@@ -80,6 +80,13 @@ local utils = {
         end
         return values
     end,
+    set_add_return = function(client, key, values, wipe)
+        if wipe then client:delete(key) end
+        for _, v in ipairs(values) do
+            client:set_add(key, v)
+        end
+        return values
+    end,
 }
 
 local shared = {
@@ -549,6 +556,270 @@ context("Redis commands", function()
         end)
     end)
 
+    context("Commands operating on sets", function() 
+        test("SADD (redis:set_add)", function() 
+            assert_true(redis:set_add('set', 0))
+            assert_true(redis:set_add('set', 1))
+            assert_false(redis:set_add('set', 0))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_add('foo', 0)
+            end)
+        end)
+
+        test("SREM (redis:set_remove)", function() 
+            utils.set_add_return(redis, 'set', { '0', '1', '2', '3', '4' })
+
+            assert_true(redis:set_remove('set', 0))
+            assert_true(redis:set_remove('set', 4))
+            assert_false(redis:set_remove('set', 10))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_remove('foo', 0)
+            end)
+        end)
+
+        test("SPOP (redis:set_pop)", function() 
+            local set = utils.set_add_return(redis, 'set', { '0', '1', '2', '3', '4' })
+
+            assert_true(table.contains(set, redis:set_pop('set')))
+            assert_nil(redis:set_pop('doesnotexist'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_pop('foo')
+            end)
+        end)
+
+        test("SMOVE (redis:set_move)", function() 
+            utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5' })
+            utils.set_add_return(redis, 'setB', { '5', '6', '7', '8', '9', '10' })
+
+            assert_true(redis:set_move('setA', 'setB', 0))
+            assert_false(redis:set_remove('setA', 0))
+            assert_true(redis:set_remove('setB', 0))
+
+            assert_true(redis:set_move('setA', 'setB', 5))
+            assert_false(redis:set_move('setA', 'setB', 100))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_move('foo', 'setB', 5)
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_move('setA', 'foo', 5)
+            end)
+        end)
+
+        test("SCARD (redis:set_cardinality)", function() 
+            utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5' })
+
+            assert_equal(redis:set_cardinality('setA'), 6)
+
+            -- empty set
+            redis:set_add('setB', 0)
+            redis:set_pop('setB')
+            assert_equal(redis:set_cardinality('doesnotexist'), 0)
+
+            -- non-existent set
+            assert_equal(redis:set_cardinality('doesnotexist'), 0)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_cardinality('foo')
+            end)
+        end)
+
+        test("SISMEMBER (redis:set_is_member)", function() 
+            utils.set_add_return(redis, 'set', { '0', '1', '2', '3', '4', '5' })
+
+            assert_true(redis:set_is_member('set', 3))
+            assert_false(redis:set_is_member('set', 100))
+            assert_false(redis:set_is_member('doesnotexist', 0))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_is_member('foo', 0)
+            end)
+        end)
+
+        test("SMEMBERS (redis:set_members)", function() 
+            local set = utils.set_add_return(redis, 'set', { '0', '1', '2', '3', '4', '5' })
+
+            assert_table_values(redis:set_members('set'), set)
+            -- this behaviour has changed in redis 2.0
+            assert_nil(redis:set_members('doesnotexist'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_members('foo')
+            end)
+        end)
+
+        test("SINTER (redis:set_intersection)", function() 
+            local setA = utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.set_add_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+
+            assert_table_values(redis:set_intersection('setA'), setA)
+            assert_table_values(redis:set_intersection('setA', 'setB'), { '3', '4', '6', '1' })
+
+            -- this behaviour has changed in redis 2.0
+            assert_nil(redis:set_intersection('setA', 'doesnotexist'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_intersection('foo')
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_intersection('setA', 'foo')
+            end)
+        end)
+
+        test("SINTERSTORE (redis:set_intersection_store)", function() 
+            local setA = utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.set_add_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+
+            assert_equal(redis:set_intersection_store('setC', 'setA'), #setA)
+            assert_table_values(redis:set_members('setC'), setA)
+
+            redis:delete('setC')
+            -- this behaviour has changed in redis 2.0
+            assert_equal(redis:set_intersection_store('setC', 'setA', 'setB'), 4)
+            assert_table_values(redis:set_members('setC'), { '1', '3', '4', '6' })
+
+            redis:delete('setC')
+            assert_equal(redis:set_intersection_store('setC', 'doesnotexist'), 0)
+            assert_false(redis:exists('setC'))
+
+            -- existing keys are replaced by SINTERSTORE
+            redis:set('foo', 'bar')
+            assert_equal(redis:set_intersection_store('foo', 'setA'), #setA)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_intersection_store('setA', 'foo')
+            end)
+        end)
+
+        test("SUNION (redis:set_union)", function() 
+            local setA = utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.set_add_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+
+            assert_table_values(redis:set_union('setA'), setA)
+            assert_table_values(
+                redis:set_union('setA', 'setB'), 
+                { '0', '1', '10', '2', '3', '4', '5', '6', '9' }
+            )
+
+            -- this behaviour has changed in redis 2.0
+            assert_table_values(redis:set_union('setA', 'doesnotexist'), setA)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_union('foo')
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_union('setA', 'foo')
+            end)
+        end)
+
+        test("SUNIONSTORE (redis:set_union_store)", function() 
+            local setA = utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.set_add_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+
+            assert_equal(redis:set_union_store('setC', 'setA'), #setA)
+            assert_table_values(redis:set_members('setC'), setA)
+
+            redis:delete('setC')
+            assert_equal(redis:set_union_store('setC', 'setA', 'setB'), 9)
+            assert_table_values(
+                redis:set_members('setC'), 
+                { '0' ,'1' , '10', '2', '3', '4', '5', '6', '9' }
+            )
+
+            redis:delete('setC')
+            assert_equal(redis:set_union_store('setC', 'doesnotexist'), 0)
+            -- this behaviour has changed in redis 2.0
+            assert_true(redis:exists('setC'))
+            assert_equal(redis:set_cardinality('setC'), 0)
+
+            -- existing keys are replaced by SUNIONSTORE
+            redis:set('foo', 'bar')
+            assert_equal(redis:set_union_store('foo', 'setA'), #setA)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_union_store('setA', 'foo')
+            end)
+        end)
+
+        test("SDIFF (redis:set_difference)", function() 
+            local setA = utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.set_add_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+
+            assert_table_values(redis:set_difference('setA'), setA)
+            assert_table_values(redis:set_difference('setA', 'setB'), { '5', '0', '2' })
+            assert_table_values(redis:set_difference('setA', 'doesnotexist'), setA)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_difference('foo')
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_difference('setA', 'foo')
+            end)
+        end)
+
+        test("SDIFFSTORE (redis:set_difference_store)", function() 
+            local setA = utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.set_add_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+
+            assert_equal(redis:set_difference_store('setC', 'setA'), #setA)
+            assert_table_values(redis:set_members('setC'), setA)
+
+            redis:delete('setC')
+            assert_equal(redis:set_difference_store('setC', 'setA', 'setB'), 3)
+            assert_table_values(redis:set_members('setC'), { '5', '0', '2' })
+
+            redis:delete('setC')
+            assert_equal(redis:set_difference_store('setC', 'doesnotexist'), 0)
+            -- this behaviour has changed in redis 2.0
+            assert_true(redis:exists('setC'))
+            assert_equal(redis:set_cardinality('setC'), 0)
+
+            -- existing keys are replaced by SDIFFSTORE
+            redis:set('foo', 'bar')
+            assert_equal(redis:set_difference_store('foo', 'setA'), #setA)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_difference_store('setA', 'foo')
+            end)
+        end)
+
+        test("SRANDMEMBER (redis:set_random_member)", function() 
+            local setA = utils.set_add_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+
+            assert_true(table.contains(setA, redis:set_random_member('setA')))
+            assert_nil(redis:set_random_member('doesnotexist'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:set_random_member('foo')
+            end)
+        end)
+    end)
+
     context("Sorting", function() 
         -- TODO: missing tests for params GET and BY
 
@@ -671,7 +942,6 @@ context("Redis commands", function()
     end)
 
     --[[  TODO: 
-      - commands operating on sets
       - commands operating on zsets
     ]]
 end)
