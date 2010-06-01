@@ -64,7 +64,7 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 
 ## Dependencies ##
 
-- [Lua 5.1](http://www.lua.org/)
+- [Lua 5.1](http://www.lua.org/) or [LuaJIT 2.0](http://luajit.org/)
 - [LuaSocket 2.0](http://www.tecgraf.puc-rio.br/~diego/professional/luasocket/)
 - [Telescope](http://telescope.luaforge.net/) (required to run the test suite)
 
