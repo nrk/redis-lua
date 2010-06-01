@@ -1,7 +1,6 @@
 package.path = package.path .. ";../?.lua"
 
 require "luarocks.require"
-require 'base'
 require "telescope"
 require "redis"
 
