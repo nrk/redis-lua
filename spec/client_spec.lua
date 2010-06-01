@@ -12,31 +12,6 @@ local settings = {
     password = nil,
 }
 
-make_assertion("numeric", "'%s' to be a numeric value", function(a) 
-    return type(tonumber(a)) == "number"
-end)
-
-make_assertion("table_values", "'%s' to have the same values as '%s'", function(a,b)
-    -- NOTE: the body of this function was taken and slightly adapted from 
-    --       Penlight (http://github.com/stevedonovan/Penlight)
-    if #a ~= #b then return false end
-    local visited = {}
-    for i = 1,#a do
-        local val, gotcha = a[i], nil
-        for j = 1,#b do
-            if not visited[j] then
-                if val == b[j] then
-                    gotcha = j
-                    break
-                end
-            end
-        end
-        if not gotcha then return false end
-        visited[gotcha] = true
-    end
-    return true
-end)
-
 function table.merge(self, tbl2)
     local new_table = {}
     for k,v in pairs(self) do new_table[k] = v end
@@ -70,6 +45,34 @@ function table.slice(self, first, length)
         table.insert(new_table, self[i])
     end
     return new_table
+end
+
+function table.compare(self, other)
+    -- NOTE: the body of this function was taken and slightly adapted from 
+    --       Penlight (http://github.com/stevedonovan/Penlight)
+    if #self ~= #other then return false end
+    local visited = {}
+    for i = 1, #self do
+        local val, gotcha = self[i], nil
+        for j = 1, #other do
+            if not visited[j] then
+                if (type(val) == 'table') then
+                    if (table.compare(val, other[j])) then
+                        gotcha = j
+                        break
+                    end
+                else
+                    if val == other[j] then
+                        gotcha = j
+                        break
+                    end
+                end
+            end
+        end
+        if not gotcha then return false end
+        visited[gotcha] = true
+    end
+    return true
 end
 
 local utils = {
@@ -128,6 +131,8 @@ local shared = {
         return { a = -10, b = 0, c = 10, d = 20, e = 20, f = 30 }
     end,
 }
+
+make_assertion("table_values", "'%s' to have the same values as '%s'", table.compare)
 
 -- ------------------------------------------------------------------------- --
 
@@ -917,10 +922,9 @@ context("Redis commands", function()
             assert_empty(redis:zset_range('zset', 5, -3))
             assert_table_values(redis:zset_range('zset', -100, 100), table.keys(zset))
 
-            -- TODO: should return a kind of tuple when using 'withscores'
             assert_table_values(
                 redis:zset_range('zset', 0, 2, 'withscores'),
-                { 'a', '-10', 'b', '0', 'c', '10' }
+                  { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
             )
 
             assert_error(function()
@@ -940,10 +944,9 @@ context("Redis commands", function()
             assert_empty(redis:zset_reverse_range('zset', 5, -3))
             assert_table_values(redis:zset_reverse_range('zset', -100, 100), table.keys(zset))
 
-            -- TODO: should return a kind of tuple when using 'withscores'
             assert_table_values(
                 redis:zset_reverse_range('zset', 0, 2, 'withscores'),
-                { 'f', '30', 'e', '20', 'd', '20' }
+                { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
             )
 
             assert_error(function()

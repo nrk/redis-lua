@@ -24,6 +24,19 @@ local function fire_and_forget(client, command)
     return false
 end
 
+local function zset_range_parse(reply, command, ...)
+    local args = {...}
+    if #args == 4 and string.lower(args[4]) == 'withscores' then
+        local new_reply = { }
+        for i = 1, #reply, 2 do
+            table.insert(new_reply, { reply[i], reply[i + 1] })
+        end
+        return new_reply
+    else
+        return reply
+    end
+end
+
 local function load_methods(proto, methods)
     local redis = setmetatable ({}, getmetatable(proto))
     for i, v in pairs(proto) do redis[i] = v end
@@ -414,9 +427,9 @@ redis_commands = {
     zset_add                   = bulk('ZADD', toboolean), 
     zset_increment_by          = bulk('ZINCRBY'), 
     zset_remove                = bulk('ZREM', toboolean), 
-    zset_range                 = inline('ZRANGE'), 
+    zset_range                 = custom('ZRANGE', request.inline, zset_range_parse), 
+    zset_reverse_range         = custom('ZREVRANGE', request.inline, zset_range_parse), 
     zset_range_by_score        = inline('ZRANGEBYSCORE'), 
-    zset_reverse_range         = inline('ZREVRANGE'), 
     zset_cardinality           = inline('ZCARD'), 
     zset_score                 = bulk('ZSCORE'), 
     zset_remove_range_by_score = inline('ZREMRANGEBYSCORE'), 
