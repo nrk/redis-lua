@@ -84,4 +84,4 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 
 ## License ##
 
-The code for redis-lua is distributed under the terms of the MIT license (see LICENSE).
+The code for redis-lua is distributed under the terms of the MIT/X11 license (see LICENSE).
