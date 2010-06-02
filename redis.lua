@@ -286,6 +286,19 @@ function connect(...)
             request.raw(self, buffer .. protocol.newline)
             return response.read(self)
         end, 
+        requests = {
+            inline    = request.inline,
+            bulk      = request.bulk,
+            multibulk = request.multibulk,
+        }, 
+        add_command = function(self, name, opts)
+            local opts = opts or {}
+            self[name] = custom(
+                opts.command or string.upper(name),
+                opts.request or request.multibulk,
+                opts.response or nil
+            )
+        end, 
         pipeline = function(self, block)
             local simulate_queued = '+' .. protocol.queued
             local requests, replies, parsers = {}, {}, {}
