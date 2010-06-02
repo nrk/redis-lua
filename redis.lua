@@ -258,14 +258,19 @@ function connect(...)
     local host, port = defaults.host, defaults.port
 
     if #args == 1 then
-        local server = uri.parse(select(1, ...))
-        if server.scheme then
-            if server.scheme ~= 'redis' then 
-                error('"' .. server.scheme .. '" is an invalid scheme')
-            end
-            host, port = server.host, server.port or defaults.port
+        if type(args[1]) == 'table' then
+            host = args[1].host or defaults.host
+            port = args[1].port or defaults.port
         else
-            host, port = server.path, defaults.port
+            local server = uri.parse(select(1, ...))
+            if server.scheme then
+                if server.scheme ~= 'redis' then 
+                    error('"' .. server.scheme .. '" is an invalid scheme')
+                end
+                host, port = server.host, server.port or defaults.port
+            else
+                host, port = server.path, defaults.port
+            end
         end
     elseif #args > 1 then 
         host, port = unpack(args)
