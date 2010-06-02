@@ -75,6 +75,13 @@ function table.compare(self, other)
 end
 
 local utils = {
+    create_client = function(parameters)
+        local redis = Redis.connect(parameters.host, parameters.port)
+        if settings.password then redis:auth(parameters.password) end
+        if settings.database then redis:select_database(parameters.database) end
+        redis:flush_database()
+        return redis
+    end,
     push_tail_return = function(client, key, values, wipe)
         if wipe then client:delete(key) end
         for _, v in ipairs(values) do
@@ -135,12 +142,64 @@ make_assertion("table_values", "'%s' to have the same values as '%s'", table.com
 
 -- ------------------------------------------------------------------------- --
 
+context("Client initialization", function()
+    test("Can connect succesfully", function()
+        local redis = Redis.connect(settings.host, settings.port)
+        assert_type(redis, 'table')
+        assert_true(table.contains(table.keys(redis), 'socket'))
+
+        redis.socket:send("PING\r\n")
+        assert_equal(redis.socket:receive('*l'), '+PONG')
+    end)
+
+    test("Accepts an URI for connection parameters", function()
+        local uri = 'redis://'..settings.host..':'..settings.port
+        local redis = Redis.connect(uri)
+        assert_type(redis, 'table')
+    end)
+
+    test("Accepts a table for connection parameters", function()
+        local redis = Redis.connect(settings)
+        assert_type(redis, 'table')
+    end)
+end)
+
+context("Client features", function()
+    before(function()
+        redis = utils.create_client(settings)
+    end)
+
+    test("Pipelining", function()
+        local replies = redis:pipeline(function()
+            ping()
+            exists('counter')
+            increment_by('counter', 10)
+            increment_by('counter', 30)
+            exists('counter')
+            get('counter')
+            set_multiple({ foo = 'bar', hoge = 'piyo'})
+            delete('foo', 'hoge')
+            get_multiple('does_not_exist', 'counter')
+            info()
+        end)
+
+        assert_type(replies, 'table')
+        assert_equal(#replies, 10)
+        assert_true(replies[1])
+        assert_type(replies[9], 'table')
+        assert_equal(replies[9][2], '40')
+        assert_type(replies[10], 'table')
+        assert_true(table.contains(table.keys(replies[10]), 'redis_version'))
+    end)
+
+    after(function()
+        redis:quit()
+    end)
+end)
+
 context("Redis commands", function() 
     before(function()
-        redis = Redis.connect(settings.host, settings.port)
-        if settings.password then redis:auth(settings.password) end
-        if settings.database then redis:select_database(settings.database) end
-        redis:flush_database()
+        redis = utils.create_client(settings)
     end)
 
     after(function()
