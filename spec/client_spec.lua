@@ -143,7 +143,7 @@ make_assertion("table_values", "'%s' to have the same values as '%s'", table.com
 -- ------------------------------------------------------------------------- --
 
 context("Client initialization", function()
-    test("Can connect succesfully", function()
+    test("Can connect successfully", function()
         local redis = Redis.connect(settings.host, settings.port)
         assert_type(redis, 'table')
         assert_true(table.contains(table.keys(redis), 'socket'))
