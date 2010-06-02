@@ -175,6 +175,30 @@ context("Client features", function()
         assert_equal(redis:raw_cmd("GET foo\r\n"), 'bar')
     end)
 
+    test("Define new commands or redefine existing ones", function()
+        redis:add_command('doesnotexist')
+        assert_not_nil(redis.doesnotexist)
+        assert_error(function() redis:doesnotexist() end)
+
+        redis:add_command('ping')
+        assert_not_nil(redis.ping)
+        assert_equal(redis:ping(), 'PONG')
+
+        redis:add_command('ping', {
+            request = redis.requests.inline
+        })
+        assert_not_nil(redis.ping)
+        assert_equal(redis:ping(), 'PONG')
+
+        redis:add_command('ping', {
+            request  = redis.requests.inline,
+            response = function(reply) return reply == 'PONG' end
+        })
+        assert_not_nil(redis.ping)
+        assert_true(redis:ping())
+
+    end)
+
     test("Pipelining commands", function()
         local replies = redis:pipeline(function()
             ping()
