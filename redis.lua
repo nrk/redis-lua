@@ -55,7 +55,7 @@ end
 function network.read(client, len)
     if len == nil then len = '*l' end
     local line, err = client.socket:receive(len)
-    if not err then return line else error('Connection error: ' .. err) end
+    if not err then return line else error('connection error: ' .. err) end
 end
 
 -- ############################################################################
@@ -98,7 +98,7 @@ function response.bulk(client, data)
     local len = tonumber(str)
 
     if not len then 
-        error('Cannot parse ' .. str .. ' as data length.')
+        error('cannot parse ' .. str .. ' as data length.')
     else
         if len == -1 then return nil end
         local next_chunk = network.read(client, len + 2)
@@ -135,7 +135,7 @@ function response.integer(client, data)
         if res == protocol.null then
             return nil
         else
-            error('Cannot parse ' .. res .. ' as numeric response.')
+            error('cannot parse ' .. res .. ' as numeric response.')
         end
     end
 
@@ -161,7 +161,7 @@ function request.raw(client, buffer)
     elseif bufferType == 'table' then
         network.write(client, table.concat(buffer))
     else
-        error('Argument error: ' .. bufferType)
+        error('argument error: ' .. bufferType)
     end
 end
 
@@ -277,7 +277,7 @@ function connect(...)
 
     local client_socket = socket.connect(host, tonumber(port))
     if not client_socket then
-        error('Could not connect to ' .. host .. ':' .. port)
+        error('could not connect to ' .. host .. ':' .. port)
     end
 
     local redis_client = {
