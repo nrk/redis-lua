@@ -40,7 +40,6 @@ end
 local function load_methods(proto, methods)
     local redis = setmetatable ({}, getmetatable(proto))
     for i, v in pairs(proto) do redis[i] = v end
-
     for i, v in pairs(methods) do redis[i] = v end
     return redis
 end
@@ -74,6 +73,7 @@ end
 
 function response.status(client, data)
     local sub = data:sub(2)
+
     if sub == protocol.ok then
         return true
     elseif sub == protocol.queued then
@@ -108,21 +108,17 @@ end
 
 function response.multibulk(client, data)
     local str = data:sub(2)
-
-    -- TODO: add a check if the returned value is indeed a number
     local list_count = tonumber(str)
 
     if list_count == -1 then 
         return nil
     else
         local list = {}
-
         if list_count > 0 then 
             for i = 1, list_count do
                 table.insert(list, i, response.bulk(client, network.read(client)))
             end
         end
-
         return list
     end
 end
@@ -153,7 +149,6 @@ protocol.prefixes = {
 -- ############################################################################
 
 function request.raw(client, buffer)
-    -- TODO: optimize
     local bufferType = type(buffer)
 
     if bufferType == 'string' then
@@ -224,8 +219,8 @@ local function custom(command, send, parse)
     return function(self, ...)
         local has_reply = send(self, command, ...)
         if has_reply == false then return end
-
         local reply = response.read(self)
+
         if type(reply) == 'table' and reply.queued then
             reply.parser = parse
             return reply
