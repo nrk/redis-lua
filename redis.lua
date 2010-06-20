@@ -303,11 +303,12 @@ function connect(...)
         }, 
         add_command = function(self, name, opts)
             local opts = opts or {}
-            self[name] = custom(
+            redis_commands[name] = custom(
                 opts.command or string.upper(name),
                 opts.request or request.multibulk,
                 opts.response or nil
             )
+            self[name] = redis_commands[name]
         end, 
         pipeline = function(self, block)
             local simulate_queued = '+' .. protocol.queued
