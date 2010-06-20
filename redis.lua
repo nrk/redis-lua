@@ -342,7 +342,7 @@ function connect(...)
                 end 
             })
 
-            local success, retval = pcall(setfenv(block, pipeline_mt))
+            local success, retval = pcall(setfenv(block, pipeline_mt), _G)
 
             network.write, network.read = __netwrite, __netread
             if not success then error(retval, 0) end
