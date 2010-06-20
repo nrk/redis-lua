@@ -37,6 +37,19 @@ local function zset_range_parse(reply, command, ...)
     end
 end
 
+local function hmset_filter_args(client, command, ...)
+    local args, arguments = {...}, {}
+    if (#args == 1 and type(args[1]) == 'table') then
+        for k,v in pairs(args[1]) do
+            table.insert(arguments, k)
+            table.insert(arguments, v)
+        end
+    else
+        arguments = args
+    end
+    request.multibulk(client, command, arguments)
+end
+
 local function load_methods(proto, methods)
     local redis = setmetatable ({}, getmetatable(proto))
     for i, v in pairs(proto) do redis[i] = v end
@@ -188,21 +201,18 @@ end
 function request.multibulk(client, command, ...)
     local args      = {...}
     local buffer    = { }
-    local arguments = { }
-    local args_len  = 1
+    local arguments = nil
+    local args_len  = nil
 
     if #args == 1 and type(args[1]) == 'table' then
-        for k, v in pairs(args[1]) do 
-            table.insert(arguments, k)
-            table.insert(arguments, v)
-            args_len = args_len + 2 
-        end
+        arguments = args[1]
+        args_len  = #args[1]
     else
         arguments = args
-        args_len  = args_len + #args
+        args_len  = #args
     end
  
-    table.insert(buffer, '*' .. tostring(args_len) .. protocol.newline)
+    table.insert(buffer, '*' .. tostring(args_len + 1) .. protocol.newline)
     table.insert(buffer, '$' .. #command .. protocol.newline .. command .. protocol.newline)
 
     for _, argument in pairs(arguments) do
@@ -368,8 +378,8 @@ redis_commands = {
     -- commands operating on string values
     set           = bulk('SET'), 
     set_preserve  = bulk('SETNX', toboolean), 
-    set_multiple  = multibulk('MSET'), 
-    set_multiple_preserve = multibulk('MSETNX', toboolean),  
+    set_multiple  = custom('MSET', hmset_filter_args), 
+    set_multiple_preserve = custom('MSETNX', hmset_filter_args, toboolean), 
     get           = inline('GET'), 
     get_multiple  = inline('MGET'), 
     get_set       = bulk('GETSET'), 
