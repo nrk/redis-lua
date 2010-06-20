@@ -1,0 +1,11 @@
+v1.0.1 (2010-xx-xx)
+  * Providing a more generalized version of the multibulk request serializer.
+
+  * _G is now passed as the argument of a pipeline block. This will change in 
+    a future major release of redis-lua, but for now it is useful to enable 
+    the usage of global functions inside of a pipeline block.
+
+  * Fix: user-added commands were not available in when pipelining commands.
+
+v1.0.0 (2010-06-02)
+  * First versioned release of redis-lua
