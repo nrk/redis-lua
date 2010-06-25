@@ -5,7 +5,7 @@ v1.0.1 (2010-xx-xx)
     a future major release of redis-lua, but for now it is useful to enable 
     the usage of global functions inside of a pipeline block.
 
-  * Fix: user-added commands were not available in when pipelining commands.
+  * Fix: user-added commands were not available when pipelining commands.
 
 v1.0.0 (2010-06-02)
   * First versioned release of redis-lua
