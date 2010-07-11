@@ -129,7 +129,7 @@ function response.multibulk(client, data)
         local list = {}
         if list_count > 0 then 
             for i = 1, list_count do
-	       table.insert(list, i, response.read(client))
+                table.insert(list, i, response.read(client))
             end
         end
         return list
