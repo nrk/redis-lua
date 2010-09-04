@@ -1,4 +1,4 @@
-package.path = package.path .. ";../src/?.lua"
+package.path = package.path .. ";../src/?.lua;src/?.lua"
 
 require "luarocks.require"
 require "telescope"
