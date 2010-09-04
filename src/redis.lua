@@ -395,11 +395,15 @@ redis_commands = {
     -- commands operating on the key space
     keys       = inline('KEYS', 
         function(response) 
-            local keys = {}
-            response:gsub('[^%s]+', function(key) 
-                table.insert(keys, key)
-            end)
-            return keys
+            if type(response) == 'table' then
+                return response
+            else
+                local keys = {}
+                response:gsub('[^%s]+', function(key) 
+                    table.insert(keys, key)
+                end)
+                return keys
+            end
         end
     ),
     randomkey  = inline('RANDOMKEY', 
