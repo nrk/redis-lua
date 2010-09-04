@@ -473,6 +473,13 @@ redis_commands = {
     zrevrank         = command('ZREVRANK'), 
     zremrangebyrank  = command('ZREMRANGEBYRANK'), 
 
+    -- publish - subscribe
+    subscribe        = command('SUBSCRIBE'), 
+    unsubscribe      = command('UNSUBSCRIBE'), 
+    psubscribe       = command('PSUBSCRIBE'), 
+    punsubscribe     = command('PUNSUBSCRIBE'), 
+    publish          = command('PUBLISH'), 
+
     -- multiple databases handling commands
     select           = command('SELECT'), 
     move             = command('MOVE', { response = toboolean }), 
