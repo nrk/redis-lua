@@ -96,7 +96,13 @@ local utils = {
         if settings.password then redis:auth(parameters.password) end
         if settings.database then redis:select(parameters.database) end
         redis:flushdb()
-        local version = parse_version(redis:info()["redis_version"])
+
+        local info = redis:info()
+        local version = parse_version(info.redis_version)
+        if version.major < 1 or (version.major == 1 and version.minor < 2) then
+            error("redis-lua does not support Redis < 1.2.0 (current: "..info.redis_version..")")
+        end
+
         return redis, version
     end,
     rpush_return = function(client, key, values, wipe)
