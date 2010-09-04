@@ -343,7 +343,13 @@ context("Redis commands", function()
             assert_equal(redis:incr('foo'), 2)
 
             assert_true(redis:set('hoge', 'piyo'))
-            assert_equal(redis:incr('hoge'), 1)
+            if version.major < 2 then
+                assert_equal(redis:incr('hoge'), 1)
+            else
+                assert_error(function()
+                    redis:incr('hoge')
+                end)
+            end
         end)
 
         test("INCRBY (redis:incrby)", function() 
@@ -358,7 +364,13 @@ context("Redis commands", function()
             assert_equal(redis:decr('foo'), -2)
 
             assert_true(redis:set('hoge', 'piyo'))
-            assert_equal(redis:decr('hoge'), -1)
+            if version.major < 2 then
+                assert_equal(redis:decr('hoge'), -1)
+            else
+                assert_error(function()
+                    redis:decr('hoge')
+                end)
+            end
         end)
 
         test("DECRBY (redis:decrby)", function() 
