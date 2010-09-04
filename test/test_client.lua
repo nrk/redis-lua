@@ -932,8 +932,11 @@ context("Redis commands", function()
 
             redis:del('setC')
             assert_equal(redis:sunionstore('setC', 'doesnotexist'), 0)
-            -- this behaviour has changed in redis 2.0
-            assert_true(redis:exists('setC'))
+            if version.major < 2 then
+                assert_true(redis:exists('setC'))
+            else
+                assert_false(redis:exists('setC'))
+            end
             assert_equal(redis:scard('setC'), 0)
 
             -- existing keys are replaced by SUNIONSTORE
@@ -978,8 +981,11 @@ context("Redis commands", function()
 
             redis:del('setC')
             assert_equal(redis:sdiffstore('setC', 'doesnotexist'), 0)
-            -- this behaviour has changed in redis 2.0
-            assert_true(redis:exists('setC'))
+            if version.major < 2 then
+                assert_true(redis:exists('setC'))
+            else
+                assert_false(redis:exists('setC'))
+            end
             assert_equal(redis:scard('setC'), 0)
 
             -- existing keys are replaced by SDIFFSTORE
