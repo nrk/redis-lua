@@ -219,8 +219,12 @@ local function custom(command, send, parse)
     end
 end
 
-local function command(command, reader)
-    return custom(command, request.multibulk, reader)
+local function command(command, opts)
+    if opts == nil or type(opts) == 'function' then
+        return custom(command, request.multibulk, opts)
+    else
+        return custom(command, opts.request or request.multibulk, opts.response)
+    end
 end
 
 -- ############################################################################
@@ -334,18 +338,23 @@ end
 
 redis_commands = {
     -- miscellaneous commands
-    ping       = command('PING', function(response) return response == 'PONG' end),
+    ping       = command('PING', {
+        response = function(response) return response == 'PONG' end
+    }),
     echo       = command('ECHO'),  
     auth       = command('AUTH'), 
 
     -- connection handling
-    quit       = custom('QUIT', fire_and_forget), 
+    quit       = command('QUIT', { request = fire_and_forget }), 
 
     -- commands operating on string values
     set        = command('SET'), 
-    setnx      = command('SETNX', toboolean), 
-    mset       = custom('MSET', hmset_filter_args), 
-    msetnx     = custom('MSETNX', hmset_filter_args, toboolean), 
+    setnx      = command('SETNX', { response = toboolean }), 
+    mset       = command('MSET', { request = hmset_filter_args }), 
+    msetnx     = command('MSETNX', { 
+        request = hmset_filter_args, 
+        response = toboolean 
+    }), 
     get        = command('GET'), 
     mget       = command('MGET'), 
     getset     = command('GETSET'), 
@@ -353,13 +362,13 @@ redis_commands = {
     incrby     = command('INCRBY'), 
     decr       = command('DECR'), 
     decrby     = command('DECRBY'), 
-    exists     = command('EXISTS', toboolean), 
+    exists     = command('EXISTS', { response = toboolean }), 
     del        = command('DEL'), 
     type       = command('TYPE'), 
 
     -- commands operating on the key space
-    keys       = command('KEYS', 
-        function(response) 
+    keys       = command('KEYS', {
+        response = function(response) 
             if type(response) == 'table' then
                 return response
             else
@@ -370,20 +379,20 @@ redis_commands = {
                 return keys
             end
         end
-    ),
-    randomkey  = command('RANDOMKEY', 
-        function(response)
+    }),
+    randomkey  = command('RANDOMKEY', {
+        response = function(response)
             if response == '' then
                 return nil
             else
                 return response
             end
         end
-    ),
+    }),
     rename    = command('RENAME'), 
-    renamenx  = command('RENAMENX', toboolean), 
-    expire    = command('EXPIRE', toboolean), 
-    expireat  = command('EXPIREAT', toboolean), 
+    renamenx  = command('RENAMENX', { response = toboolean }), 
+    expire    = command('EXPIRE', { response = toboolean }), 
+    expireat  = command('EXPIREAT', { response = toboolean }), 
     dbsize    = command('DBSIZE'), 
     ttl       = command('TTL'), 
 
@@ -401,12 +410,12 @@ redis_commands = {
     rpoplpush        = command('RPOPLPUSH'), 
 
     -- commands operating on sets
-    sadd             = command('SADD', toboolean), 
-    srem             = command('SREM', toboolean), 
+    sadd             = command('SADD', { response = toboolean }), 
+    srem             = command('SREM', { response = toboolean }), 
     spop             = command('SPOP'), 
-    smove            = command('SMOVE', toboolean), 
+    smove            = command('SMOVE', { response = toboolean }), 
     scard            = command('SCARD'), 
-    sismember        = command('SISMEMBER', toboolean), 
+    sismember        = command('SISMEMBER', { response = toboolean }), 
     sinter           = command('SINTER'), 
     sinterstore      = command('SINTERSTORE'), 
     sunion           = command('SUNION'), 
@@ -417,11 +426,11 @@ redis_commands = {
     srandmember      = command('SRANDMEMBER'), 
 
     -- commands operating on sorted sets 
-    zadd             = command('ZADD', toboolean), 
+    zadd             = command('ZADD', { response = toboolean }), 
     zincrby          = command('ZINCRBY'), 
-    zrem             = command('ZREM', toboolean), 
-    zrange           = custom('ZRANGE', request.multibulk, zset_range_parse), 
-    zrevrange        = custom('ZREVRANGE', request.multibulk, zset_range_parse), 
+    zrem             = command('ZREM', { response = toboolean }), 
+    zrange           = command('ZRANGE', { response = zset_range_parse }), 
+    zrevrange        = command('ZREVRANGE', { response = zset_range_parse }), 
     zrangebyscore    = command('ZRANGEBYSCORE'), 
     zcard            = command('ZCARD'), 
     zscore           = command('ZSCORE'), 
@@ -429,7 +438,7 @@ redis_commands = {
 
     -- multiple databases handling commands
     select           = command('SELECT'), 
-    move             = command('MOVE', toboolean), 
+    move             = command('MOVE', { response = toboolean }), 
     flushdb          = command('FLUSHDB'), 
     flushall         = command('FLUSHALL'), 
 
@@ -442,8 +451,8 @@ redis_commands = {
             alpha = true, 
         }   
     --]]
-    sort             = custom('SORT', 
-        function(client, command, key, params)
+    sort             = command('SORT', {
+        request = function(client, command, key, params)
             local query = { key }
 
             if params then
@@ -480,18 +489,18 @@ redis_commands = {
 
             request.multibulk(client, command, query)
         end
-    ), 
+    }), 
 
     -- persistence control commands
     save             = command('SAVE'), 
     bgsave           = command('BGSAVE'), 
     lastsave         = command('LASTSAVE'), 
-    shutdown         = custom('SHUTDOWN', fire_and_forget), 
+    shutdown         = command('SHUTDOWN', { request = fire_and_forget }), 
     bgrewriteaof     = command('BGREWRITEAOF'),
 
     -- remote server control commands
-    info             = command('INFO', 
-        function(response) 
+    info             = command('INFO', {
+        response = function(response) 
             local info = {}
             response:gsub('([^\r\n]*)\r\n', function(kv) 
                 local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
@@ -507,6 +516,6 @@ redis_commands = {
             end)
             return info
         end
-    ),
+    }),
     slaveof          = command('SLAVEOF'), 
 }
