@@ -519,8 +519,13 @@ context("Redis commands", function()
 
     context("Commands operating on lists", function() 
         test("RPUSH (redis:rpush)", function() 
-            assert_true(redis:rpush('metavars', 'foo'))
-            assert_true(redis:rpush('metavars', 'hoge'))
+            if version.major < 2 then
+                assert_true(redis:rpush('metavars', 'foo'))
+                assert_true(redis:rpush('metavars', 'hoge'))
+            else
+                assert_equal(redis:rpush('metavars', 'foo'), 1)
+                assert_equal(redis:rpush('metavars', 'hoge'), 2)
+            end
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:rpush('foo', 'baz')
@@ -528,8 +533,13 @@ context("Redis commands", function()
         end)
 
         test("LPUSH (redis:lpush)", function() 
-            assert_true(redis:lpush('metavars', 'foo'))
-            assert_true(redis:lpush('metavars', 'hoge'))
+            if version.major < 2 then
+                assert_true(redis:lpush('metavars', 'foo'))
+                assert_true(redis:lpush('metavars', 'hoge'))
+            else
+                assert_equal(redis:lpush('metavars', 'foo'), 1)
+                assert_equal(redis:lpush('metavars', 'hoge'), 2)
+            end
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:lpush('foo', 'baz')
