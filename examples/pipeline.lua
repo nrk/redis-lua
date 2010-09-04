@@ -1,4 +1,4 @@
-package.path = package.path .. ";../?.lua"
+package.path = package.path .. ";../src/?.lua"
 
 require 'redis'
 
@@ -8,19 +8,19 @@ local params = {
 }
 
 local redis = Redis.connect(params)
-redis:select_database(15) -- for testing purposes
+redis:select(15) -- for testing purposes
 
 local replies = redis:pipeline(function()
     ping()
-    flush_database()
+    flushdb()
     exists('counter')
-    increment_by('counter', 10)
-    increment_by('counter', 30)
+    incrby('counter', 10)
+    incrby('counter', 30)
     exists('counter')
     get('counter')
-    set_multiple({ foo = 'bar', hoge = 'piyo'})
-    delete('foo', 'hoge')
-    get_multiple('does_not_exist', 'counter')
+    mset({ foo = 'bar', hoge = 'piyo'})
+    del('foo', 'hoge')
+    mget('does_not_exist', 'counter')
     info()
 end)
 

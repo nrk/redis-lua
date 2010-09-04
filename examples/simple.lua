@@ -1,4 +1,4 @@
-package.path = package.path .. ";../?.lua"
+package.path = package.path .. ";../src/?.lua"
 
 require 'redis'
 
@@ -8,7 +8,7 @@ local params = {
 }
 
 local redis = Redis.connect(params)
-redis:select_database(15) -- for testing purposes
+redis:select(15) -- for testing purposes
 
 redis:set('foo', 'bar')
 local value = redis:get('foo')
