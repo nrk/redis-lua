@@ -426,8 +426,10 @@ context("Redis commands", function()
             redis:zadd('fooZSet', 0, 'bar')
             assert_equal(redis:type('fooZSet'), 'zset')
 
-            redis:hset('fooHash', 'value', 'bar')
-            assert_equal('hash', redis:type('fooHash'))
+            if version.major > 1 then
+                redis:hset('fooHash', 'value', 'bar')
+                assert_equal('hash', redis:type('fooHash'))
+            end
         end)
 
         test("APPEND (redis:append)", function() 
