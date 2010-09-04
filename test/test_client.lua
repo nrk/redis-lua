@@ -74,13 +74,30 @@ function table.compare(self, other)
     return true
 end
 
+function parse_version(version_str)
+    local info, pattern = {}, "^(%d+)%.(%d+)%.(%d+)%-?(%w-)$"
+    local major, minor, patch, status,ff = version_str:match(pattern)
+    if major and minor and patch then
+        info.major  = tonumber(major)
+        info.minor  = tonumber(minor)
+        info.patch  = tonumber(patch)
+        if status then
+            info.status = status
+        end
+    else
+        info.unrecognized = true
+    end
+    return info
+end
+
 local utils = {
     create_client = function(parameters)
         local redis = Redis.connect(parameters.host, parameters.port)
         if settings.password then redis:auth(parameters.password) end
         if settings.database then redis:select(parameters.database) end
         redis:flushdb()
-        return redis
+        local version = parse_version(redis:info()["redis_version"])
+        return redis, version
     end,
     rpush_return = function(client, key, values, wipe)
         if wipe then client:del(key) end
@@ -229,7 +246,7 @@ end)
 
 context("Redis commands", function() 
     before(function()
-        redis = utils.create_client(settings)
+        redis, version = utils.create_client(settings)
     end)
 
     after(function()
