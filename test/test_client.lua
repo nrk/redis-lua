@@ -829,8 +829,12 @@ context("Redis commands", function()
             local set = utils.sadd_return(redis, 'set', { '0', '1', '2', '3', '4', '5' })
 
             assert_table_values(redis:smembers('set'), set)
-            -- this behaviour has changed in redis 2.0
-            assert_nil(redis:smembers('doesnotexist'))
+
+            if version.major < 2 then
+                assert_nil(redis:smembers('doesnotexist'))
+            else
+                assert_table_values(redis:smembers('doesnotexist'), {})
+            end
 
             assert_error(function()
                 redis:set('foo', 'bar')
@@ -845,8 +849,11 @@ context("Redis commands", function()
             assert_table_values(redis:sinter('setA'), setA)
             assert_table_values(redis:sinter('setA', 'setB'), { '3', '4', '6', '1' })
 
-            -- this behaviour has changed in redis 2.0
-            assert_nil(redis:sinter('setA', 'doesnotexist'))
+            if version.major < 2 then
+                assert_nil(redis:sinter('setA', 'doesnotexist'))
+            else
+                assert_table_values(redis:sinter('setA', 'doesnotexist'), {})
+            end
 
             assert_error(function()
                 redis:set('foo', 'bar')
