@@ -1348,6 +1348,11 @@ context("Redis commands", function()
             local server_info = redis:info()
             assert_equal(server_info.role, 'master')
         end)
+
+        test("CONFIG (redis:config)", function() 
+            if version.major < 2 then return end
+            -- TODO: implement tests
+        end)
     end)
 
     context("Persistence control commands", function() 

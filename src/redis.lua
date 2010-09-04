@@ -528,4 +528,5 @@ redis_commands = {
         end
     }),
     slaveof          = command('SLAVEOF'), 
+    config           = command('CONFIG'), 
 }
