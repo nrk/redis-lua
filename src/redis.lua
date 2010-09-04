@@ -469,6 +469,9 @@ redis_commands = {
     zcard            = command('ZCARD'), 
     zscore           = command('ZSCORE'), 
     zremrangebyscore = command('ZREMRANGEBYSCORE'), 
+    zrank            = command('ZRANK'), 
+    zrevrank         = command('ZREVRANK'), 
+    zremrangebyrank  = command('ZREMRANGEBYRANK'), 
 
     -- multiple databases handling commands
     select           = command('SELECT'), 

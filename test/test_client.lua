@@ -1368,6 +1368,72 @@ context("Redis commands", function()
                 redis:zremrangebyscore('foo', 0, 0)
             end)
         end)
+
+        test("ZRANK (redis:zrank)", function() 
+            if version.major < 2 then return end
+
+            utils.zadd_return(redis, 'zset', shared.zset_sample())
+
+            assert_equal(redis:zrank('zset', 'a'), 0)
+            assert_equal(redis:zrank('zset', 'b'), 1)
+            assert_equal(redis:zrank('zset', 'e'), 4)
+
+            redis:zrem('zset', 'd')
+            assert_equal(redis:zrank('zset', 'e'), 3)
+
+            assert_nil(redis:zrank('zset', 'x'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zrank('foo', 'a')
+            end)
+        end)
+
+        test("ZREVRANK (redis:zrevrank)", function() 
+            if version.major < 2 then return end
+
+            utils.zadd_return(redis, 'zset', shared.zset_sample())
+
+            assert_equal(redis:zrevrank('zset', 'a'), 5)
+            assert_equal(redis:zrevrank('zset', 'b'), 4)
+            assert_equal(redis:zrevrank('zset', 'e'), 1)
+
+            redis:zrem('zset', 'e')
+            assert_equal(redis:zrevrank('zset', 'd'), 1)
+
+            assert_nil(redis:zrevrank('zset', 'x'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zrevrank('foo', 'a')
+            end)
+        end)
+
+        test("ZREMRANGEBYRANK (redis:zremrangebyrank)", function() 
+            if version.major < 2 then return end
+
+            utils.zadd_return(redis, 'zseta', shared.zset_sample())
+            assert_equal(redis:zremrangebyrank('zseta', 0, 2), 3)
+            assert_table_values(redis:zrange('zseta', 0, -1), { 'd', 'e', 'f' })
+            assert_equal(redis:zremrangebyrank('zseta', 0, 0), 1)
+            assert_table_values(redis:zrange('zseta', 0, -1), { 'e', 'f' })
+
+            utils.zadd_return(redis, 'zsetb', shared.zset_sample())
+            assert_equal(redis:zremrangebyrank('zsetb', -3, -1), 3)
+            assert_table_values(redis:zrange('zsetb', 0, -1), { 'a', 'b', 'c' })
+            assert_equal(redis:zremrangebyrank('zsetb', -1, -1), 1)
+            assert_table_values(redis:zrange('zsetb', 0, -1), { 'a', 'b' })
+            assert_equal(redis:zremrangebyrank('zsetb', -2, -1), 2)
+            assert_table_values(redis:zrange('zsetb', 0, -1), { })
+            assert_false(redis:exists('zsetb'))
+
+            assert_equal(redis:zremrangebyrank('zsetc', 0, 0), 0)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zremrangebyrank('foo', 0, 1)
+            end)
+        end)
     end)
 
     context("Sorting", function() 
