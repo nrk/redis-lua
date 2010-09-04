@@ -784,6 +784,16 @@ context("Redis commands", function()
                 redis:rpoplpush('temporary', 'foo')
             end)
         end)
+
+        test("BLPOP (redis:blpop)", function() 
+            if version.major < 2 then return end
+            -- TODO: implement tests
+        end)
+
+        test("BRPOP (redis:brpop)", function() 
+            if version.major < 2 then return end
+            -- TODO: implement tests
+        end)
     end)
 
     context("Commands operating on sets", function() 

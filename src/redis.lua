@@ -411,6 +411,8 @@ redis_commands = {
     lpop             = command('LPOP'), 
     rpop             = command('RPOP'), 
     rpoplpush        = command('RPOPLPUSH'), 
+    blpop            = command('BLPOP'), 
+    brpop            = command('BRPOP'), 
 
     -- commands operating on sets
     sadd             = command('SADD', { response = toboolean }), 
