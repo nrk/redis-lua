@@ -6,7 +6,7 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 
 ## Main features ##
 
-- Support for Redis up to version 1.2
+- Support for Redis 1.2 and 2.0
 - Command pipelining
 - User-definable commands
 
