@@ -369,31 +369,31 @@ end
 
 redis_commands = {
     -- miscellaneous commands
-    ping  = inline('PING', function(response) return response == 'PONG' end), 
-    echo  = bulk('ECHO'),  
-    auth  = inline('AUTH'), 
+    ping       = inline('PING', function(response) return response == 'PONG' end),
+    echo       = bulk('ECHO'),  
+    auth       = inline('AUTH'), 
 
     -- connection handling
-    quit  = custom('QUIT', fire_and_forget), 
+    quit       = custom('QUIT', fire_and_forget), 
 
     -- commands operating on string values
-    set           = bulk('SET'), 
-    set_preserve  = bulk('SETNX', toboolean), 
-    set_multiple  = custom('MSET', hmset_filter_args), 
-    set_multiple_preserve = custom('MSETNX', hmset_filter_args, toboolean), 
-    get           = inline('GET'), 
-    get_multiple  = inline('MGET'), 
-    get_set       = bulk('GETSET'), 
-    increment     = inline('INCR'), 
-    increment_by  = inline('INCRBY'), 
-    decrement     = inline('DECR'), 
-    decrement_by  = inline('DECRBY'), 
-    exists        = inline('EXISTS', toboolean), 
-    delete        = inline('DEL'), 
-    type          = inline('TYPE'), 
+    set        = bulk('SET'), 
+    setnx      = bulk('SETNX', toboolean), 
+    mset       = custom('MSET', hmset_filter_args), 
+    msetnx     = custom('MSETNX', hmset_filter_args, toboolean), 
+    get        = inline('GET'), 
+    mget       = inline('MGET'), 
+    getset     = bulk('GETSET'), 
+    incr       = inline('INCR'), 
+    incrby     = inline('INCRBY'), 
+    decr       = inline('DECR'), 
+    decrby     = inline('DECRBY'), 
+    exists     = inline('EXISTS', toboolean), 
+    del        = inline('DEL'), 
+    type       = inline('TYPE'), 
 
     -- commands operating on the key space
-    keys          = inline('KEYS', 
+    keys       = inline('KEYS', 
         function(response) 
             local keys = {}
             response:gsub('[^%s]+', function(key) 
@@ -402,7 +402,7 @@ redis_commands = {
             return keys
         end
     ),
-    random_key       = inline('RANDOMKEY', 
+    randomkey  = inline('RANDOMKEY', 
         function(response)
             if response == '' then
                 return nil
@@ -411,58 +411,58 @@ redis_commands = {
             end
         end
     ),
-    rename           = inline('RENAME'), 
-    rename_preserve  = inline('RENAMENX', toboolean), 
-    expire           = inline('EXPIRE', toboolean), 
-    expire_at        = inline('EXPIREAT', toboolean), 
-    database_size    = inline('DBSIZE'), 
-    time_to_live     = inline('TTL'), 
+    rename    = inline('RENAME'), 
+    renamenx  = inline('RENAMENX', toboolean), 
+    expire    = inline('EXPIRE', toboolean), 
+    expireat  = inline('EXPIREAT', toboolean), 
+    dbsize    = inline('DBSIZE'), 
+    ttl       = inline('TTL'), 
 
     -- commands operating on lists
-    push_tail     = bulk('RPUSH'), 
-    push_head     = bulk('LPUSH'), 
-    list_length   = inline('LLEN'), 
-    list_range    = inline('LRANGE'), 
-    list_trim     = inline('LTRIM'), 
-    list_index    = inline('LINDEX'), 
-    list_set      = bulk('LSET'), 
-    list_remove   = bulk('LREM'), 
-    pop_first     = inline('LPOP'), 
-    pop_last      = inline('RPOP'), 
-    pop_last_push_head = inline('RPOPLPUSH'), 
+    rpush            = bulk('RPUSH'), 
+    lpush            = bulk('LPUSH'), 
+    llen             = inline('LLEN'), 
+    lrange           = inline('LRANGE'), 
+    ltrim            = inline('LTRIM'), 
+    lindex           = inline('LINDEX'), 
+    lset             = bulk('LSET'), 
+    lrem             = bulk('LREM'), 
+    lpop             = inline('LPOP'), 
+    rpop             = inline('RPOP'), 
+    rpoplpush        = inline('RPOPLPUSH'), 
 
     -- commands operating on sets
-    set_add                 = bulk('SADD', toboolean), 
-    set_remove              = bulk('SREM', toboolean), 
-    set_pop                 = inline('SPOP'), 
-    set_move                = bulk('SMOVE', toboolean), 
-    set_cardinality         = inline('SCARD'), 
-    set_is_member           = bulk('SISMEMBER', toboolean), 
-    set_intersection        = inline('SINTER'), 
-    set_intersection_store  = inline('SINTERSTORE'), 
-    set_union               = inline('SUNION'), 
-    set_union_store         = inline('SUNIONSTORE'), 
-    set_difference          = inline('SDIFF'), 
-    set_difference_store    = inline('SDIFFSTORE'), 
-    set_members             = inline('SMEMBERS'), 
-    set_random_member       = inline('SRANDMEMBER'), 
+    sadd             = bulk('SADD', toboolean), 
+    srem             = bulk('SREM', toboolean), 
+    spop             = inline('SPOP'), 
+    smove            = bulk('SMOVE', toboolean), 
+    scard            = inline('SCARD'), 
+    sismember        = bulk('SISMEMBER', toboolean), 
+    sinter           = inline('SINTER'), 
+    sinterstore      = inline('SINTERSTORE'), 
+    sunion           = inline('SUNION'), 
+    sunionstore      = inline('SUNIONSTORE'), 
+    sdiff            = inline('SDIFF'), 
+    sdiffstore       = inline('SDIFFSTORE'), 
+    smembers         = inline('SMEMBERS'), 
+    srandmember      = inline('SRANDMEMBER'), 
 
     -- commands operating on sorted sets 
-    zset_add                   = bulk('ZADD', toboolean), 
-    zset_increment_by          = bulk('ZINCRBY'), 
-    zset_remove                = bulk('ZREM', toboolean), 
-    zset_range                 = custom('ZRANGE', request.inline, zset_range_parse), 
-    zset_reverse_range         = custom('ZREVRANGE', request.inline, zset_range_parse), 
-    zset_range_by_score        = inline('ZRANGEBYSCORE'), 
-    zset_cardinality           = inline('ZCARD'), 
-    zset_score                 = bulk('ZSCORE'), 
-    zset_remove_range_by_score = inline('ZREMRANGEBYSCORE'), 
+    zadd             = bulk('ZADD', toboolean), 
+    zincrby          = bulk('ZINCRBY'), 
+    zrem             = bulk('ZREM', toboolean), 
+    zrange           = custom('ZRANGE', request.inline, zset_range_parse), 
+    zrevrange        = custom('ZREVRANGE', request.inline, zset_range_parse), 
+    zrangebyscore    = inline('ZRANGEBYSCORE'), 
+    zcard            = inline('ZCARD'), 
+    zscore           = bulk('ZSCORE'), 
+    zremrangebyscore = inline('ZREMRANGEBYSCORE'), 
 
     -- multiple databases handling commands
-    select_database  = inline('SELECT'), 
-    move_key         = inline('MOVE', toboolean), 
-    flush_database   = inline('FLUSHDB'), 
-    flush_databases  = inline('FLUSHALL'), 
+    select           = inline('SELECT'), 
+    move             = inline('MOVE', toboolean), 
+    flushdb          = inline('FLUSHDB'), 
+    flushall         = inline('FLUSHALL'), 
 
     -- sorting
     --[[ params = { 
@@ -473,7 +473,7 @@ redis_commands = {
             alpha = true, 
         }   
     --]]
-    sort  = custom('SORT', 
+    sort             = custom('SORT', 
         function(client, command, key, params)
             local query = { key }
 
@@ -510,13 +510,13 @@ redis_commands = {
 
     -- persistence control commands
     save             = inline('SAVE'), 
-    background_save  = inline('BGSAVE'), 
-    last_save        = inline('LASTSAVE'), 
+    bgsave           = inline('BGSAVE'), 
+    lastsave         = inline('LASTSAVE'), 
     shutdown         = custom('SHUTDOWN', fire_and_forget), 
-    background_rewrite_aof = inline('BGREWRITEAOF'),
+    bgrewriteaof     = inline('BGREWRITEAOF'),
 
     -- remote server control commands
-    info = inline('INFO', 
+    info             = inline('INFO', 
         function(response) 
             local info = {}
             response:gsub('([^\r\n]*)\r\n', function(kv) 
@@ -534,10 +534,5 @@ redis_commands = {
             return info
         end
     ),
-    slave_of        = inline('SLAVEOF'), 
-    slave_of_no_one = custom('SLAVEOF', 
-        function(client, command)
-            request.inline(client, command, 'NO ONE')
-        end
-    ),
+    slaveof          = inline('SLAVEOF'), 
 }

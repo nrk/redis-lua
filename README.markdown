@@ -30,7 +30,7 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 ### Sort list values by using various parameters supported by the server ###
 
     for _,v in ipairs({ 10,3,2,6,1,4,23 }) do
-        redis:push_tail('usr:nrk:ids',v)
+        redis:rpush('usr:nrk:ids',v)
     end
 
     local sorted = redis:sort('usr:nrk:ids', {

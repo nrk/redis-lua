@@ -1,4 +1,8 @@
-v1.0.1 (2010-xx-xx)
+v2.0.0 (2010-xx-xx)
+  * Support for long names of Redis commands has been dropped, the client now 
+    uses the same command names as defined by Redis.
+
+v1.0.1 (2010-07-30)
   * Providing a more generalized version of the multibulk request serializer.
 
   * _G is now passed as the argument of a pipeline block. This will change in 
