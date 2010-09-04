@@ -303,6 +303,22 @@ context("Redis commands", function()
             assert_equal(redis:get('foo'), 'bar')
         end)
 
+        test("SETEX (redis:setex)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:setex('foo', 10, 'bar'))
+            assert_true(redis:exists('foo'))
+            assert_equal(redis:ttl('foo'), 10)
+
+            assert_true(redis:setex('hoge', 1, 'piyo'))
+            utils.sleep(2)
+            assert_false(redis:exists('hoge'))
+
+            assert_error(function() redis:setex('hoge', 2.5, 'piyo') end)
+            assert_error(function() redis:setex('hoge', 0, 'piyo') end)
+            assert_error(function() redis:setex('hoge', -10, 'piyo') end)
+        end)
+
         test("MSET (redis:mset)", function()
             local kvs = shared.kvs_table()
 
@@ -402,6 +418,42 @@ context("Redis commands", function()
 
             redis:zadd('fooZSet', 0, 'bar')
             assert_equal(redis:type('fooZSet'), 'zset')
+        end)
+
+        test("APPEND (redis:append)", function() 
+            if version.major < 2 then return end
+
+            redis:set('foo', 'bar')
+            assert_equal(redis:append('foo', '__'), 5)
+            assert_equal(redis:append('foo', 'bar'), 8)
+            assert_equal(redis:get('foo'), 'bar__bar')
+
+            assert_equal(redis:append('hoge', 'piyo'), 4)
+            assert_equal(redis:get('hoge'), 'piyo')
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                redis:append('metavars', 'bar')
+            end)
+        end)
+
+        test("SUBSTR (redis:substr)", function() 
+            if version.major < 2 then return end
+
+            redis:set('var', 'foobar')
+            assert_equal(redis:substr('var', 0, 2), 'foo')
+            assert_equal(redis:substr('var', 3, 5), 'bar')
+            assert_equal(redis:substr('var', -3, -1), 'bar')
+
+            assert_nil(redis:substr('var', 5, 0))
+
+            redis:set('numeric', 123456789)
+            assert_equal(redis:substr('numeric', 0, 4), '12345')
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                redis:substr('metavars', 0, 3)
+            end)
         end)
     end)
 

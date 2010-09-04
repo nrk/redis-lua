@@ -350,6 +350,7 @@ redis_commands = {
     -- commands operating on string values
     set        = command('SET'), 
     setnx      = command('SETNX', { response = toboolean }), 
+    setex      = command('SETEX'),          -- >= 2.0
     mset       = command('MSET', { request = hmset_filter_args }), 
     msetnx     = command('MSETNX', { 
         request = hmset_filter_args, 
@@ -365,6 +366,8 @@ redis_commands = {
     exists     = command('EXISTS', { response = toboolean }), 
     del        = command('DEL'), 
     type       = command('TYPE'), 
+    append     = command('APPEND'),         -- >= 2.0
+    substr     = command('SUBSTR'),         -- >= 2.0
 
     -- commands operating on the key space
     keys       = command('KEYS', {
