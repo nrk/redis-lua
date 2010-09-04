@@ -37,6 +37,27 @@ local function zset_range_parse(reply, command, ...)
     end
 end
 
+local function zset_store_request(client, command, ...)
+    local args, opts = {...}, { }
+
+    if #args >= 1 and type(args[#args]) == 'table' then
+        local options = table.remove(args, #args)
+        if options.weights and type(options.weights) == 'table' then
+            table.insert(opts, 'WEIGHTS')
+            for _, weight in ipairs(options.weights) do
+                table.insert(opts, weight)
+            end
+        end
+        if options.aggregate then
+            table.insert(opts, 'AGGREGATE')
+            table.insert(opts, options.aggregate)
+        end
+    end
+
+    for _, v in pairs(opts) do table.insert(args, v) end
+    request.multibulk(client, command, args)
+end
+
 local function hmset_filter_args(client, command, ...)
     local args, arguments = {...}, {}
     if (#args == 1 and type(args[1]) == 'table') then
@@ -442,6 +463,9 @@ redis_commands = {
     zrange           = command('ZRANGE', { response = zset_range_parse }), 
     zrevrange        = command('ZREVRANGE', { response = zset_range_parse }), 
     zrangebyscore    = command('ZRANGEBYSCORE'), 
+    zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }), 
+    zinterstore      = command('ZINTERSTORE', { request = zset_store_request }), 
+    zcount           = command('ZCOUNT'), 
     zcard            = command('ZCARD'), 
     zscore           = command('ZSCORE'), 
     zremrangebyscore = command('ZREMRANGEBYSCORE'), 

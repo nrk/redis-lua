@@ -1190,6 +1190,129 @@ context("Redis commands", function()
             end)
         end)
 
+        test("ZUNIONSTORE (redis:zunionstore)", function() 
+            if version.major < 2 then return end
+
+            utils.zadd_return(redis, 'zseta', { a = 1, b = 2, c = 3 })
+            utils.zadd_return(redis, 'zsetb', { b = 1, c = 2, d = 3 })
+
+            -- basic ZUNIONSTORE
+            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb'), 4)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'), 
+                { { 'a', '1' }, { 'b', '3' }, { 'd', '3' }, { 'c', '5' } }
+            )
+
+            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetbNull'), 3)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'a', '1' }, { 'b', '2' }, { 'c', '3' }}
+            )
+
+            assert_equal(redis:zunionstore('zsetc', 2, 'zsetaNull', 'zsetb'), 3)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'b', '1' }, { 'c', '2' }, { 'd', '3' }}
+            )
+
+            assert_equal(redis:zunionstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
+
+            -- with WEIGHTS
+            local opts =  { weights = { 2, 3 } }
+            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'a', '2' }, { 'b', '7' }, { 'd', '9' }, { 'c', '12' } }
+            )
+
+            -- with AGGREGATE (min)
+            local opts =  { aggregate = 'min' }
+            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'a', '1' }, { 'b', '1' }, { 'c', '2' }, { 'd', '3' } }
+            )
+
+            -- with AGGREGATE (max)
+            local opts =  { aggregate = 'max' }
+            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'a', '1' }, { 'b', '2' }, { 'c', '3' }, { 'd', '3' } }
+            )
+
+            assert_error(function()
+                redis:set('zsetFake', 'fake')
+                redis:zunionstore('zsetc', 2, 'zseta', 'zsetFake')
+            end)
+        end)
+
+        test("ZINTERSTORE (redis:zinterstore)", function() 
+            if version.major < 2 then return end
+
+            utils.zadd_return(redis, 'zseta', { a = 1, b = 2, c = 3 })
+            utils.zadd_return(redis, 'zsetb', { b = 1, c = 2, d = 3 })
+
+            -- basic ZUNIONSTORE
+            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb'), 2)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'), 
+                { { 'b', '3' }, { 'c', '5' } }
+            )
+
+            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetbNull'), 0)
+            assert_equal(redis:zinterstore('zsetc', 2, 'zsetaNull', 'zsetb'), 0)
+            assert_equal(redis:zinterstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
+
+            -- with WEIGHTS
+            local opts =  { weights = { 2, 3 } }
+            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'b', '7' }, { 'c', '12' } }
+            )
+
+            -- with AGGREGATE (min)
+            local opts =  { aggregate = 'min' }
+            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'b', '1' }, { 'c', '2' } }
+            )
+
+            -- with AGGREGATE (max)
+            local opts =  { aggregate = 'max' }
+            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
+            assert_table_values(
+                redis:zrange('zsetc', 0, -1, 'withscores'),
+                { { 'b', '2' }, { 'c', '3' } }
+            )
+
+            assert_error(function()
+                redis:set('zsetFake', 'fake')
+                redis:zinterstore('zsetc', 2, 'zseta', 'zsetFake')
+            end)
+        end)
+
+        test("ZCOUNT (redis:zcount)", function() 
+            if version.major < 2 then return end
+
+            utils.zadd_return(redis, 'zset', shared.zset_sample())
+
+            assert_equal(redis:zcount('zset', 50, 100), 0)
+            assert_equal(redis:zcount('zset', -100, 100), 6)
+            assert_equal(redis:zcount('zset', 10, 20), 3)
+            assert_equal(redis:zcount('zset', '(10', 20), 2)
+            assert_equal(redis:zcount('zset', 10, '(20'), 1)
+            assert_equal(redis:zcount('zset', '(10', '(20'), 0)
+            assert_equal(redis:zcount('zset', '(0', '(30'), 3)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zcount('foo', 0, 0)
+            end)
+        end)
+
         test("ZCARD (redis:zcard)", function() 
             local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
 
