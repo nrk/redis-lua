@@ -347,6 +347,11 @@ redis_commands = {
     -- connection handling
     quit       = command('QUIT', { request = fire_and_forget }), 
 
+    -- transactions
+    multi      = command('MULTI'), 
+    exec       = command('EXEC'), 
+    discard    = command('DISCARD'), 
+
     -- commands operating on string values
     set        = command('SET'), 
     setnx      = command('SETNX', { response = toboolean }), 

@@ -162,6 +162,13 @@ local shared = {
 }
 
 make_assertion("table_values", "'%s' to have the same values as '%s'", table.compare)
+make_assertion("response_queued", "to be queued", function(response)
+    if type(response) == 'table' and response.queued == true then
+        return true
+    else
+        return false
+    end
+end)
 
 -- ------------------------------------------------------------------------- --
 
@@ -1358,6 +1365,39 @@ context("Redis commands", function()
 
         test("LASTSAVE (redis:lastsave)", function() 
             assert_greater_than(tonumber(redis:lastsave()), 0)
+        end)
+    end)
+
+    context("Transactions", function()
+        test("MULTI / EXEC (redis:multi, redis:exec)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:multi())
+            assert_response_queued(redis:ping())
+            assert_response_queued(redis:echo('hello'))
+            assert_response_queued(redis:echo('redis'))
+            assert_table_values(redis:exec(), { 'PONG', 'hello', 'redis' })
+
+            assert_true(redis:multi())
+            assert_table_values(redis:exec(), {})
+
+            -- should raise an error when trying to EXEC without having previously issued MULTI
+            assert_error(function() redis:exec() end)
+        end)
+
+        test("DISCARD (redis:discard)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:multi())
+            assert_response_queued(redis:set('foo', 'bar'))
+            assert_response_queued(redis:set('hoge', 'piyo'))
+            assert_true(redis:discard())
+
+            -- should raise an error when trying to EXEC after a DISCARD
+            assert_error(function() redis:exec() end)
+
+            assert_false(redis:exists('foo'))
+            assert_false(redis:exists('hoge'))
         end)
     end)
 end)
