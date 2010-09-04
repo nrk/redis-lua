@@ -208,13 +208,13 @@ context("Client features", function()
         assert_equal(redis:ping(), 'PONG')
 
         redis:add_command('ping', {
-            request = redis.requests.inline
+            request = redis.requests.multibulk
         })
         assert_not_nil(redis.ping)
         assert_equal(redis:ping(), 'PONG')
 
         redis:add_command('ping', {
-            request  = redis.requests.inline,
+            request  = redis.requests.multibulk,
             response = function(reply) return reply == 'PONG' end
         })
         assert_not_nil(redis.ping)

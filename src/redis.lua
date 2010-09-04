@@ -173,31 +173,6 @@ function request.raw(client, buffer)
     end
 end
 
-function request.inline(client, command, ...)
-    local args = {...}
-
-    if #args == 0 then
-        network.write(client, command .. protocol.newline)
-    else
-        network.write(client, command .. ' ' .. table.concat(args, ' ') .. protocol.newline)
-    end
-end
-
-function request.bulk(client, command, ...)
-    local args = {...}
-    local data = tostring(table.remove(args))
-
-    if #args > 0 then 
-        arguments = table.concat(args, ' ')
-    else 
-        arguments = ''
-    end
-
-    request.raw(client, { 
-        command, ' ', arguments, ' ', #data, protocol.newline, data, protocol.newline 
-    })
-end
-
 function request.multibulk(client, command, ...)
     local args      = {...}
     local buffer    = { }
@@ -244,16 +219,8 @@ local function custom(command, send, parse)
     end
 end
 
-local function bulk(command, reader)
-    return custom(command, request.bulk, reader)
-end
-
-local function multibulk(command, reader)
+local function command(command, reader)
     return custom(command, request.multibulk, reader)
-end
-
-local function inline(command, reader)
-    return custom(command, request.inline, reader)
 end
 
 -- ############################################################################
@@ -297,10 +264,8 @@ function connect(...)
             return response.read(self)
         end, 
         requests = {
-            inline    = request.inline,
-            bulk      = request.bulk,
             multibulk = request.multibulk,
-        }, 
+        },
         add_command = function(self, name, opts)
             local opts = opts or {}
             redis_commands[name] = custom(
@@ -369,31 +334,31 @@ end
 
 redis_commands = {
     -- miscellaneous commands
-    ping       = inline('PING', function(response) return response == 'PONG' end),
-    echo       = bulk('ECHO'),  
-    auth       = inline('AUTH'), 
+    ping       = command('PING', function(response) return response == 'PONG' end),
+    echo       = command('ECHO'),  
+    auth       = command('AUTH'), 
 
     -- connection handling
     quit       = custom('QUIT', fire_and_forget), 
 
     -- commands operating on string values
-    set        = bulk('SET'), 
-    setnx      = bulk('SETNX', toboolean), 
+    set        = command('SET'), 
+    setnx      = command('SETNX', toboolean), 
     mset       = custom('MSET', hmset_filter_args), 
     msetnx     = custom('MSETNX', hmset_filter_args, toboolean), 
-    get        = inline('GET'), 
-    mget       = inline('MGET'), 
-    getset     = bulk('GETSET'), 
-    incr       = inline('INCR'), 
-    incrby     = inline('INCRBY'), 
-    decr       = inline('DECR'), 
-    decrby     = inline('DECRBY'), 
-    exists     = inline('EXISTS', toboolean), 
-    del        = inline('DEL'), 
-    type       = inline('TYPE'), 
+    get        = command('GET'), 
+    mget       = command('MGET'), 
+    getset     = command('GETSET'), 
+    incr       = command('INCR'), 
+    incrby     = command('INCRBY'), 
+    decr       = command('DECR'), 
+    decrby     = command('DECRBY'), 
+    exists     = command('EXISTS', toboolean), 
+    del        = command('DEL'), 
+    type       = command('TYPE'), 
 
     -- commands operating on the key space
-    keys       = inline('KEYS', 
+    keys       = command('KEYS', 
         function(response) 
             if type(response) == 'table' then
                 return response
@@ -406,7 +371,7 @@ redis_commands = {
             end
         end
     ),
-    randomkey  = inline('RANDOMKEY', 
+    randomkey  = command('RANDOMKEY', 
         function(response)
             if response == '' then
                 return nil
@@ -415,58 +380,58 @@ redis_commands = {
             end
         end
     ),
-    rename    = inline('RENAME'), 
-    renamenx  = inline('RENAMENX', toboolean), 
-    expire    = inline('EXPIRE', toboolean), 
-    expireat  = inline('EXPIREAT', toboolean), 
-    dbsize    = inline('DBSIZE'), 
-    ttl       = inline('TTL'), 
+    rename    = command('RENAME'), 
+    renamenx  = command('RENAMENX', toboolean), 
+    expire    = command('EXPIRE', toboolean), 
+    expireat  = command('EXPIREAT', toboolean), 
+    dbsize    = command('DBSIZE'), 
+    ttl       = command('TTL'), 
 
     -- commands operating on lists
-    rpush            = bulk('RPUSH'), 
-    lpush            = bulk('LPUSH'), 
-    llen             = inline('LLEN'), 
-    lrange           = inline('LRANGE'), 
-    ltrim            = inline('LTRIM'), 
-    lindex           = inline('LINDEX'), 
-    lset             = bulk('LSET'), 
-    lrem             = bulk('LREM'), 
-    lpop             = inline('LPOP'), 
-    rpop             = inline('RPOP'), 
-    rpoplpush        = inline('RPOPLPUSH'), 
+    rpush            = command('RPUSH'), 
+    lpush            = command('LPUSH'), 
+    llen             = command('LLEN'), 
+    lrange           = command('LRANGE'), 
+    ltrim            = command('LTRIM'), 
+    lindex           = command('LINDEX'), 
+    lset             = command('LSET'), 
+    lrem             = command('LREM'), 
+    lpop             = command('LPOP'), 
+    rpop             = command('RPOP'), 
+    rpoplpush        = command('RPOPLPUSH'), 
 
     -- commands operating on sets
-    sadd             = bulk('SADD', toboolean), 
-    srem             = bulk('SREM', toboolean), 
-    spop             = inline('SPOP'), 
-    smove            = bulk('SMOVE', toboolean), 
-    scard            = inline('SCARD'), 
-    sismember        = bulk('SISMEMBER', toboolean), 
-    sinter           = inline('SINTER'), 
-    sinterstore      = inline('SINTERSTORE'), 
-    sunion           = inline('SUNION'), 
-    sunionstore      = inline('SUNIONSTORE'), 
-    sdiff            = inline('SDIFF'), 
-    sdiffstore       = inline('SDIFFSTORE'), 
-    smembers         = inline('SMEMBERS'), 
-    srandmember      = inline('SRANDMEMBER'), 
+    sadd             = command('SADD', toboolean), 
+    srem             = command('SREM', toboolean), 
+    spop             = command('SPOP'), 
+    smove            = command('SMOVE', toboolean), 
+    scard            = command('SCARD'), 
+    sismember        = command('SISMEMBER', toboolean), 
+    sinter           = command('SINTER'), 
+    sinterstore      = command('SINTERSTORE'), 
+    sunion           = command('SUNION'), 
+    sunionstore      = command('SUNIONSTORE'), 
+    sdiff            = command('SDIFF'), 
+    sdiffstore       = command('SDIFFSTORE'), 
+    smembers         = command('SMEMBERS'), 
+    srandmember      = command('SRANDMEMBER'), 
 
     -- commands operating on sorted sets 
-    zadd             = bulk('ZADD', toboolean), 
-    zincrby          = bulk('ZINCRBY'), 
-    zrem             = bulk('ZREM', toboolean), 
-    zrange           = custom('ZRANGE', request.inline, zset_range_parse), 
-    zrevrange        = custom('ZREVRANGE', request.inline, zset_range_parse), 
-    zrangebyscore    = inline('ZRANGEBYSCORE'), 
-    zcard            = inline('ZCARD'), 
-    zscore           = bulk('ZSCORE'), 
-    zremrangebyscore = inline('ZREMRANGEBYSCORE'), 
+    zadd             = command('ZADD', toboolean), 
+    zincrby          = command('ZINCRBY'), 
+    zrem             = command('ZREM', toboolean), 
+    zrange           = custom('ZRANGE', request.multibulk, zset_range_parse), 
+    zrevrange        = custom('ZREVRANGE', request.multibulk, zset_range_parse), 
+    zrangebyscore    = command('ZRANGEBYSCORE'), 
+    zcard            = command('ZCARD'), 
+    zscore           = command('ZSCORE'), 
+    zremrangebyscore = command('ZREMRANGEBYSCORE'), 
 
     -- multiple databases handling commands
-    select           = inline('SELECT'), 
-    move             = inline('MOVE', toboolean), 
-    flushdb          = inline('FLUSHDB'), 
-    flushall         = inline('FLUSHALL'), 
+    select           = command('SELECT'), 
+    move             = command('MOVE', toboolean), 
+    flushdb          = command('FLUSHDB'), 
+    flushall         = command('FLUSHALL'), 
 
     -- sorting
     --[[ params = { 
@@ -483,16 +448,20 @@ redis_commands = {
 
             if params then
                 if params.by then 
-                    table.insert(query, 'BY ' .. params.by)
+                    table.insert(query, 'BY')
+                    table.insert(query, params.by)
                 end
 
                 if type(params.limit) == 'table' then 
                     -- TODO: check for lower and upper limits
-                    table.insert(query, 'LIMIT ' .. params.limit[1] .. ' ' .. params.limit[2])
+                    table.insert(query, 'LIMIT')
+                    table.insert(query, params.limit[1])
+                    table.insert(query, params.limit[2])
                 end
 
                 if params.get then 
-                    table.insert(query, 'GET ' .. params.get)
+                    table.insert(query, 'GET')
+                    table.insert(query, params.get)
                 end
 
                 if params.sort then
@@ -504,23 +473,24 @@ redis_commands = {
                 end
 
                 if params.store then
-                    table.insert(query, 'STORE ' .. params.store)
+                    table.insert(query, 'STORE')
+                    table.insert(query, params.store)
                 end
             end
 
-            request.inline(client, command, table.concat(query, ' '))
+            request.multibulk(client, command, query)
         end
     ), 
 
     -- persistence control commands
-    save             = inline('SAVE'), 
-    bgsave           = inline('BGSAVE'), 
-    lastsave         = inline('LASTSAVE'), 
+    save             = command('SAVE'), 
+    bgsave           = command('BGSAVE'), 
+    lastsave         = command('LASTSAVE'), 
     shutdown         = custom('SHUTDOWN', fire_and_forget), 
-    bgrewriteaof     = inline('BGREWRITEAOF'),
+    bgrewriteaof     = command('BGREWRITEAOF'),
 
     -- remote server control commands
-    info             = inline('INFO', 
+    info             = command('INFO', 
         function(response) 
             local info = {}
             response:gsub('([^\r\n]*)\r\n', function(kv) 
@@ -538,5 +508,5 @@ redis_commands = {
             return info
         end
     ),
-    slaveof          = inline('SLAVEOF'), 
+    slaveof          = command('SLAVEOF'), 
 }
