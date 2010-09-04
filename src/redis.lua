@@ -473,6 +473,53 @@ redis_commands = {
     zrevrank         = command('ZREVRANK'), 
     zremrangebyrank  = command('ZREMRANGEBYRANK'), 
 
+    -- commands operating on hashes
+    hset             = command('HSET', { response = toboolean }), 
+    hsetnx           = command('HSETNX', { response = toboolean }), 
+    hmset            = command('HMSET', {
+        request = function(client, command, ...)
+            local args, arguments = {...}, { }
+            if #args == 2 then
+                table.insert(arguments, args[1])
+                for k, v in pairs(args[2]) do
+                    table.insert(arguments, k)
+                    table.insert(arguments, v)
+                end
+            else
+                arguments = args
+            end
+            request.multibulk(client, command, arguments)
+        end,
+    }), 
+    hincrby          = command('HINCRBY'), 
+    hget             = command('HGET'), 
+    hmget            = command('HMGET', {
+        request = function(client, command, ...)
+            local args, arguments = {...}, { }
+            if #args == 2 then
+                table.insert(arguments, args[1])
+                for _, v in ipairs(args[2]) do
+                    table.insert(arguments, v)
+                end
+            else
+                arguments = args
+            end
+            request.multibulk(client, command, arguments)
+        end,
+    }), 
+    hdel             = command('HDEL', { response = toboolean }), 
+    hexists          = command('HEXISTS', { response = toboolean }), 
+    hlen             = command('HLEN'), 
+    hkeys            = command('HKEYS'), 
+    hvals            = command('HVALS'), 
+    hgetall          = command('HGETALL', {
+        response = function(reply, command, ...)
+            local new_reply = { }
+            for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
+            return new_reply
+        end
+    }), 
+
     -- publish - subscribe
     subscribe        = command('SUBSCRIBE'), 
     unsubscribe      = command('UNSUBSCRIBE'), 

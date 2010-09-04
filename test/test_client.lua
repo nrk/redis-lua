@@ -425,6 +425,9 @@ context("Redis commands", function()
 
             redis:zadd('fooZSet', 0, 'bar')
             assert_equal(redis:type('fooZSet'), 'zset')
+
+            redis:hset('fooHash', 'value', 'bar')
+            assert_equal('hash', redis:type('fooHash'))
         end)
 
         test("APPEND (redis:append)", function() 
@@ -1432,6 +1435,178 @@ context("Redis commands", function()
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:zremrangebyrank('foo', 0, 1)
+            end)
+        end)
+    end)
+
+    context("Commands operating on hashes", function() 
+        test("HSET (redis:hset)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:hset('metavars', 'foo', 'bar'))
+            assert_true(redis:hset('metavars', 'hoge', 'piyo'))
+            assert_equal(redis:hget('metavars', 'foo'), 'bar')
+            assert_equal(redis:hget('metavars', 'hoge'), 'piyo')
+
+            assert_error(function()
+                redis:set('test', 'foobar')
+                redis:hset('test', 'hoge', 'piyo')
+            end)
+        end)
+
+        test("HGET (redis:hget)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:hset('metavars', 'foo', 'bar'))
+            assert_equal(redis:hget('metavars', 'foo'), 'bar')
+            assert_nil(redis:hget('metavars', 'hoge'))
+            assert_nil(redis:hget('hashDoesNotExist', 'field'))
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                redis:hget('metavars', 'foo')
+            end)
+        end)
+
+        test("HEXISTS (redis:hexists)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:hset('metavars', 'foo', 'bar'))
+            assert_true(redis:hexists('metavars', 'foo'))
+            assert_false(redis:hexists('metavars', 'hoge'))
+            assert_false(redis:hexists('hashDoesNotExist', 'field'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hexists('foo')
+            end)
+        end)
+
+        test("HDEL (redis:hdel)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:hset('metavars', 'foo', 'bar'))
+            assert_true(redis:hexists('metavars', 'foo'))
+            assert_true(redis:hdel('metavars', 'foo'))
+            assert_false(redis:hexists('metavars', 'foo'))
+
+            assert_false(redis:hdel('metavars', 'hoge'))
+            assert_false(redis:hdel('hashDoesNotExist', 'field'))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hdel('foo', 'field')
+            end)
+        end)
+
+        test("HLEN (redis:hlen)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:hset('metavars', 'foo', 'bar'))
+            assert_true(redis:hset('metavars', 'hoge', 'piyo'))
+            assert_true(redis:hset('metavars', 'foofoo', 'barbar'))
+            assert_true(redis:hset('metavars', 'hogehoge', 'piyopiyo'))
+
+            assert_equal(redis:hlen('metavars'), 4)
+            redis:hdel('metavars', 'foo')
+            assert_equal(redis:hlen('metavars'), 3)
+            assert_equal(redis:hlen('hashDoesNotExist'), 0)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hlen('foo')
+            end)
+        end)
+
+        test("HSETNX (redis:hsetnx)", function() 
+            if version.major < 2 then return end
+
+            assert_true(redis:hsetnx('metavars', 'foo', 'bar'))
+            assert_false(redis:hsetnx('metavars', 'foo', 'barbar'))
+            assert_equal(redis:hget('metavars', 'foo'), 'bar')
+
+            assert_error(function()
+                redis:set('test', 'foobar')
+                redis:hsetnx('test', 'hoge', 'piyo')
+            end)
+        end)
+
+        test("HMSET / HMGET (redis:hmset, redis:hmget)", function() 
+            if version.major < 2 then return end
+
+            local hashKVs = { foo = 'bar', hoge = 'piyo' }
+
+            -- key => value pairs via table
+            assert_true(redis:hmset('metavars', hashKVs))
+            local retval = redis:hmget('metavars', table.keys(hashKVs))
+            assert_table_values(retval, table.values(hashKVs))
+
+            -- key => value pairs via function arguments
+            redis:del('metavars')
+            assert_true(redis:hmset('metavars', 'foo', 'bar', 'hoge', 'piyo'))
+            assert_table_values(retval, table.values(hashKVs))
+        end)
+
+        test("HINCRBY (redis:hincrby)", function() 
+            if version.major < 2 then return end
+
+            assert_equal(redis:hincrby('hash', 'counter', 10), 10)
+            assert_equal(redis:hincrby('hash', 'counter', 10), 20)
+            assert_equal(redis:hincrby('hash', 'counter', -20), 0)
+
+            assert_error(function()
+                redis:hset('hash', 'field', 'string_value')
+                redis:hincrby('hash', 'field', 10)
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hincrby('foo', 'bar', 1)
+            end)
+        end)
+
+        test("HKEYS (redis:hkeys)", function() 
+            if version.major < 2 then return end
+
+            local hashKVs = { foo = 'bar', hoge = 'piyo' }
+            assert_true(redis:hmset('metavars', hashKVs))
+
+            assert_table_values(redis:hkeys('metavars'), table.keys(hashKVs))
+            assert_table_values(redis:hkeys('hashDoesNotExist'), { })
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hkeys('foo')
+            end)
+        end)
+
+        test("HVALS (redis:hvals)", function() 
+            if version.major < 2 then return end
+
+            local hashKVs = { foo = 'bar', hoge = 'piyo' }
+            assert_true(redis:hmset('metavars', hashKVs))
+
+            assert_table_values(redis:hvals('metavars'), table.values(hashKVs))
+            assert_table_values(redis:hvals('hashDoesNotExist'), { })
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hvals('foo')
+            end)
+        end)
+
+        test("HGETALL (redis:hgetall)", function() 
+            if version.major < 2 then return end
+
+            local hashKVs = { foo = 'bar', hoge = 'piyo' }
+            assert_true(redis:hmset('metavars', hashKVs))
+
+            assert_true(table.compare(redis:hgetall('metavars'), hashKVs))
+            assert_true(table.compare(redis:hgetall('hashDoesNotExist'), { }))
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hgetall('foo')
             end)
         end)
     end)
