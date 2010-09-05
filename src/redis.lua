@@ -185,10 +185,10 @@ protocol.prefixes = {
 function request.raw(client, buffer)
     local bufferType = type(buffer)
 
-    if bufferType == 'string' then
-        network.write(client, buffer)
-    elseif bufferType == 'table' then
+    if bufferType == 'table' then
         network.write(client, table.concat(buffer))
+    elseif bufferType == 'string' then
+        network.write(client, buffer)
     else
         error('argument error: ' .. bufferType)
     end
@@ -196,24 +196,20 @@ end
 
 function request.multibulk(client, command, ...)
     local args      = {...}
-    local buffer    = { }
-    local arguments = nil
-    local args_len  = nil
+    local args_len  = #args
+    local buffer    = { true, true }
+    local proto_nl  = protocol.newline
 
-    if #args == 1 and type(args[1]) == 'table' then
-        arguments = args[1]
-        args_len  = #args[1]
-    else
-        arguments = args
-        args_len  = #args
+    if args_len == 1 and type(args[1]) == 'table' then
+        args_len, args = #args[1], args[1]
     end
- 
-    table.insert(buffer, '*' .. tostring(args_len + 1) .. protocol.newline)
-    table.insert(buffer, '$' .. #command .. protocol.newline .. command .. protocol.newline)
 
-    for _, argument in pairs(arguments) do
+    buffer[1] = '*' .. tostring(args_len + 1) .. proto_nl
+    buffer[2] = '$' .. #command .. proto_nl .. command .. proto_nl
+
+    for _, argument in pairs(args) do
         s_argument = tostring(argument)
-        table.insert(buffer, '$' .. #s_argument .. protocol.newline .. s_argument .. protocol.newline)
+        table.insert(buffer, '$' .. #s_argument .. proto_nl .. s_argument .. proto_nl)
     end
 
     request.raw(client, buffer)
