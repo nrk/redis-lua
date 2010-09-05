@@ -43,23 +43,33 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
         print(k .. ' => ' .. tostring(v))
     end
     --[[
-    changes_since_last_save => 8
+    redis_git_dirty => 0
+    redis_git_sha1 => aaed0894
+    process_id => 23115
+    vm_enabled => 0
+    hash_max_zipmap_entries => 64
+    expired_keys => 9
+    changes_since_last_save => 2
     role => master
-    last_save_time => 1275138868
-    used_memory => 4735076
+    last_save_time => 1283621624
+    used_memory => 537204
     bgsave_in_progress => 0
-    redis_version => 1.2.6
+    redis_version => 2.0.0
     multiplexing_api => epoll
-    used_memory_human => 4.52M
-    uptime_in_seconds => 3451
+    total_connections_received => 314
+    db0 => {keys=3,expires=0}
+    pubsub_patterns => 0
+    used_memory_human => 524.61K
+    pubsub_channels => 0
+    uptime_in_seconds => 1033
     connected_slaves => 0
     connected_clients => 1
     bgrewriteaof_in_progress => 0
-    db10 => table: 0x864e020
+    blocked_clients => 0
     arch_bits => 32
-    total_commands_processed => 601082
-    db0 => table: 0x8652030
-    total_connections_received => 20
+    total_commands_processed => 3982
+    hash_max_zipmap_value => 512
+    db15 => {keys=1,expires=0}
     uptime_in_days => 0
     ]]
 
