@@ -340,11 +340,11 @@ function connect(...)
             network.write(self, table.concat(requests, ''))
 
             for i = 1, #requests do
-                local parser = parsers[i]
+                local raw_reply, parser = response.read(self), parsers[i]
                 if parser then
-                    table.insert(replies, parser(response.read(self)))
+                    table.insert(replies, i, parser(raw_reply))
                 else
-                    table.insert(replies, response.read(self))
+                    table.insert(replies, i, raw_reply)
                 end
             end
 
