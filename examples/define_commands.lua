@@ -11,7 +11,7 @@ local params = {
 Redis.define_command('hset')
 
 -- you can also specify a response callback to parse raw replies
-Redis.define_command('hgetall', { 
+Redis.define_command('hgetall', {
     response = function(reply, command, ...)
         local new_reply = { }
         for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end

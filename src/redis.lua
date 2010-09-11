@@ -27,8 +27,8 @@ end
 
 local function toboolean(value) return value == 1 end
 
-local function fire_and_forget(client, command) 
-    -- let's fire and forget! the connection is closed as soon 
+local function fire_and_forget(client, command)
+    -- let's fire and forget! the connection is closed as soon
     -- as the SHUTDOWN command is received by the server.
     client.network.write(client, command .. protocol.newline)
     return false
@@ -114,7 +114,7 @@ function response.read(client)
     local prefix = res:sub(1, -#res)
     local response_handler = protocol.prefixes[prefix]
 
-    if not response_handler then 
+    if not response_handler then
         error('unknown response prefix: ' .. prefix)
     else
         return response_handler(client, res)
@@ -147,7 +147,7 @@ function response.bulk(client, data)
     local str = data:sub(2)
     local len = tonumber(str)
 
-    if not len then 
+    if not len then
         error('cannot parse ' .. str .. ' as data length.')
     else
         if len == -1 then return nil end
@@ -160,11 +160,11 @@ function response.multibulk(client, data)
     local str = data:sub(2)
     local list_count = tonumber(str)
 
-    if list_count == -1 then 
+    if list_count == -1 then
         return nil
     else
         local list = {}
-        if list_count > 0 then 
+        if list_count > 0 then
             for i = 1, list_count do
                 table.insert(list, i, response.read(client))
             end
@@ -189,11 +189,11 @@ function response.integer(client, data)
 end
 
 protocol.prefixes = {
-    ['+'] = response.status, 
-    ['-'] = response.error, 
-    ['$'] = response.bulk, 
-    ['*'] = response.multibulk, 
-    [':'] = response.integer, 
+    ['+'] = response.status,
+    ['-'] = response.error,
+    ['$'] = response.bulk,
+    ['*'] = response.multibulk,
+    [':'] = response.integer,
 }
 
 -- ############################################################################
@@ -313,10 +313,10 @@ client_prototype.pipeline = function(client, block)
         table.insert(requests, buffer)
     end
 
-    -- TODO: this hack is necessary to temporarily reuse the current 
-    --       request -> response handling implementation of redis-lua 
-    --       without further changes in the code, but it will surely 
-    --       disappear when the new command-definition infrastructure 
+    -- TODO: this hack is necessary to temporarily reuse the current
+    --       request -> response handling implementation of redis-lua
+    --       without further changes in the code, but it will surely
+    --       disappear when the new command-definition infrastructure
     --       will finally be in place.
     client.network.read = function()
         return simulate_queued
@@ -372,7 +372,7 @@ function connect(...)
         else
             local server = uri.parse(select(1, ...))
             if server.scheme then
-                if server.scheme ~= 'redis' then 
+                if server.scheme ~= 'redis' then
                     error('"' .. server.scheme .. '" is an invalid scheme')
                 end
                 host, port = server.host, server.port or defaults.port
@@ -390,11 +390,11 @@ function connect(...)
                 host, port = server.path, defaults.port
             end
         end
-    elseif #args > 1 then 
+    elseif #args > 1 then
         host, port = unpack(args)
     end
 
-    if host == nil then 
+    if host == nil then
         error('please specify the address of running redis instance')
     end
 
@@ -414,47 +414,47 @@ commands = {
     ping       = command('PING', {
         response = function(response) return response == 'PONG' end
     }),
-    echo       = command('ECHO'),  
-    auth       = command('AUTH'), 
+    echo       = command('ECHO'),
+    auth       = command('AUTH'),
 
     -- connection handling
-    quit       = command('QUIT', { request = fire_and_forget }), 
+    quit       = command('QUIT', { request = fire_and_forget }),
 
     -- transactions
-    multi      = command('MULTI'), 
-    exec       = command('EXEC'), 
-    discard    = command('DISCARD'), 
+    multi      = command('MULTI'),
+    exec       = command('EXEC'),
+    discard    = command('DISCARD'),
 
     -- commands operating on string values
-    set        = command('SET'), 
-    setnx      = command('SETNX', { response = toboolean }), 
+    set        = command('SET'),
+    setnx      = command('SETNX', { response = toboolean }),
     setex      = command('SETEX'),          -- >= 2.0
-    mset       = command('MSET', { request = hmset_filter_args }), 
-    msetnx     = command('MSETNX', { 
-        request = hmset_filter_args, 
-        response = toboolean 
-    }), 
-    get        = command('GET'), 
-    mget       = command('MGET'), 
-    getset     = command('GETSET'), 
-    incr       = command('INCR'), 
-    incrby     = command('INCRBY'), 
-    decr       = command('DECR'), 
-    decrby     = command('DECRBY'), 
-    exists     = command('EXISTS', { response = toboolean }), 
-    del        = command('DEL'), 
-    type       = command('TYPE'), 
+    mset       = command('MSET', { request = hmset_filter_args }),
+    msetnx     = command('MSETNX', {
+        request = hmset_filter_args,
+        response = toboolean
+    }),
+    get        = command('GET'),
+    mget       = command('MGET'),
+    getset     = command('GETSET'),
+    incr       = command('INCR'),
+    incrby     = command('INCRBY'),
+    decr       = command('DECR'),
+    decrby     = command('DECRBY'),
+    exists     = command('EXISTS', { response = toboolean }),
+    del        = command('DEL'),
+    type       = command('TYPE'),
     append     = command('APPEND'),         -- >= 2.0
     substr     = command('SUBSTR'),         -- >= 2.0
 
     -- commands operating on the key space
     keys       = command('KEYS', {
-        response = function(response) 
+        response = function(response)
             if type(response) == 'table' then
                 return response
             else
                 local keys = {}
-                response:gsub('[^%s]+', function(key) 
+                response:gsub('[^%s]+', function(key)
                     table.insert(keys, key)
                 end)
                 return keys
@@ -470,64 +470,64 @@ commands = {
             end
         end
     }),
-    rename    = command('RENAME'), 
-    renamenx  = command('RENAMENX', { response = toboolean }), 
-    expire    = command('EXPIRE', { response = toboolean }), 
-    expireat  = command('EXPIREAT', { response = toboolean }), 
-    dbsize    = command('DBSIZE'), 
-    ttl       = command('TTL'), 
+    rename    = command('RENAME'),
+    renamenx  = command('RENAMENX', { response = toboolean }),
+    expire    = command('EXPIRE', { response = toboolean }),
+    expireat  = command('EXPIREAT', { response = toboolean }),
+    dbsize    = command('DBSIZE'),
+    ttl       = command('TTL'),
 
     -- commands operating on lists
-    rpush            = command('RPUSH'), 
-    lpush            = command('LPUSH'), 
-    llen             = command('LLEN'), 
-    lrange           = command('LRANGE'), 
-    ltrim            = command('LTRIM'), 
-    lindex           = command('LINDEX'), 
-    lset             = command('LSET'), 
-    lrem             = command('LREM'), 
-    lpop             = command('LPOP'), 
-    rpop             = command('RPOP'), 
-    rpoplpush        = command('RPOPLPUSH'), 
-    blpop            = command('BLPOP'), 
-    brpop            = command('BRPOP'), 
+    rpush            = command('RPUSH'),
+    lpush            = command('LPUSH'),
+    llen             = command('LLEN'),
+    lrange           = command('LRANGE'),
+    ltrim            = command('LTRIM'),
+    lindex           = command('LINDEX'),
+    lset             = command('LSET'),
+    lrem             = command('LREM'),
+    lpop             = command('LPOP'),
+    rpop             = command('RPOP'),
+    rpoplpush        = command('RPOPLPUSH'),
+    blpop            = command('BLPOP'),
+    brpop            = command('BRPOP'),
 
     -- commands operating on sets
-    sadd             = command('SADD', { response = toboolean }), 
-    srem             = command('SREM', { response = toboolean }), 
-    spop             = command('SPOP'), 
-    smove            = command('SMOVE', { response = toboolean }), 
-    scard            = command('SCARD'), 
-    sismember        = command('SISMEMBER', { response = toboolean }), 
-    sinter           = command('SINTER'), 
-    sinterstore      = command('SINTERSTORE'), 
-    sunion           = command('SUNION'), 
-    sunionstore      = command('SUNIONSTORE'), 
-    sdiff            = command('SDIFF'), 
-    sdiffstore       = command('SDIFFSTORE'), 
-    smembers         = command('SMEMBERS'), 
-    srandmember      = command('SRANDMEMBER'), 
+    sadd             = command('SADD', { response = toboolean }),
+    srem             = command('SREM', { response = toboolean }),
+    spop             = command('SPOP'),
+    smove            = command('SMOVE', { response = toboolean }),
+    scard            = command('SCARD'),
+    sismember        = command('SISMEMBER', { response = toboolean }),
+    sinter           = command('SINTER'),
+    sinterstore      = command('SINTERSTORE'),
+    sunion           = command('SUNION'),
+    sunionstore      = command('SUNIONSTORE'),
+    sdiff            = command('SDIFF'),
+    sdiffstore       = command('SDIFFSTORE'),
+    smembers         = command('SMEMBERS'),
+    srandmember      = command('SRANDMEMBER'),
 
-    -- commands operating on sorted sets 
-    zadd             = command('ZADD', { response = toboolean }), 
-    zincrby          = command('ZINCRBY'), 
-    zrem             = command('ZREM', { response = toboolean }), 
-    zrange           = command('ZRANGE', { response = zset_range_parse }), 
-    zrevrange        = command('ZREVRANGE', { response = zset_range_parse }), 
-    zrangebyscore    = command('ZRANGEBYSCORE'), 
-    zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }), 
-    zinterstore      = command('ZINTERSTORE', { request = zset_store_request }), 
-    zcount           = command('ZCOUNT'), 
-    zcard            = command('ZCARD'), 
-    zscore           = command('ZSCORE'), 
-    zremrangebyscore = command('ZREMRANGEBYSCORE'), 
-    zrank            = command('ZRANK'), 
-    zrevrank         = command('ZREVRANK'), 
-    zremrangebyrank  = command('ZREMRANGEBYRANK'), 
+    -- commands operating on sorted sets
+    zadd             = command('ZADD', { response = toboolean }),
+    zincrby          = command('ZINCRBY'),
+    zrem             = command('ZREM', { response = toboolean }),
+    zrange           = command('ZRANGE', { response = zset_range_parse }),
+    zrevrange        = command('ZREVRANGE', { response = zset_range_parse }),
+    zrangebyscore    = command('ZRANGEBYSCORE'),
+    zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }),
+    zinterstore      = command('ZINTERSTORE', { request = zset_store_request }),
+    zcount           = command('ZCOUNT'),
+    zcard            = command('ZCARD'),
+    zscore           = command('ZSCORE'),
+    zremrangebyscore = command('ZREMRANGEBYSCORE'),
+    zrank            = command('ZRANK'),
+    zrevrank         = command('ZREVRANK'),
+    zremrangebyrank  = command('ZREMRANGEBYRANK'),
 
     -- commands operating on hashes
-    hset             = command('HSET', { response = toboolean }), 
-    hsetnx           = command('HSETNX', { response = toboolean }), 
+    hset             = command('HSET', { response = toboolean }),
+    hsetnx           = command('HSETNX', { response = toboolean }),
     hmset            = command('HMSET', {
         request = function(client, command, ...)
             local args, arguments = {...}, { }
@@ -542,9 +542,9 @@ commands = {
             end
             request.multibulk(client, command, arguments)
         end,
-    }), 
-    hincrby          = command('HINCRBY'), 
-    hget             = command('HGET'), 
+    }),
+    hincrby          = command('HINCRBY'),
+    hget             = command('HGET'),
     hmget            = command('HMGET', {
         request = function(client, command, ...)
             local args, arguments = {...}, { }
@@ -558,60 +558,60 @@ commands = {
             end
             request.multibulk(client, command, arguments)
         end,
-    }), 
-    hdel             = command('HDEL', { response = toboolean }), 
-    hexists          = command('HEXISTS', { response = toboolean }), 
-    hlen             = command('HLEN'), 
-    hkeys            = command('HKEYS'), 
-    hvals            = command('HVALS'), 
+    }),
+    hdel             = command('HDEL', { response = toboolean }),
+    hexists          = command('HEXISTS', { response = toboolean }),
+    hlen             = command('HLEN'),
+    hkeys            = command('HKEYS'),
+    hvals            = command('HVALS'),
     hgetall          = command('HGETALL', {
         response = function(reply, command, ...)
             local new_reply = { }
             for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
             return new_reply
         end
-    }), 
+    }),
 
     -- publish - subscribe
-    subscribe        = command('SUBSCRIBE'), 
-    unsubscribe      = command('UNSUBSCRIBE'), 
-    psubscribe       = command('PSUBSCRIBE'), 
-    punsubscribe     = command('PUNSUBSCRIBE'), 
-    publish          = command('PUBLISH'), 
+    subscribe        = command('SUBSCRIBE'),
+    unsubscribe      = command('UNSUBSCRIBE'),
+    psubscribe       = command('PSUBSCRIBE'),
+    punsubscribe     = command('PUNSUBSCRIBE'),
+    publish          = command('PUBLISH'),
 
     -- multiple databases handling commands
-    select           = command('SELECT'), 
-    move             = command('MOVE', { response = toboolean }), 
-    flushdb          = command('FLUSHDB'), 
-    flushall         = command('FLUSHALL'), 
+    select           = command('SELECT'),
+    move             = command('MOVE', { response = toboolean }),
+    flushdb          = command('FLUSHDB'),
+    flushall         = command('FLUSHALL'),
 
     -- sorting
-    --[[ params = { 
-            by    = 'weight_*', 
-            get   = 'object_*', 
+    --[[ params = {
+            by    = 'weight_*',
+            get   = 'object_*',
             limit = { 0, 10 },
             sort  = 'desc',
-            alpha = true, 
-        }   
+            alpha = true,
+        }
     --]]
     sort             = command('SORT', {
         request = function(client, command, key, params)
             local query = { key }
 
             if params then
-                if params.by then 
+                if params.by then
                     table.insert(query, 'BY')
                     table.insert(query, params.by)
                 end
 
-                if type(params.limit) == 'table' then 
+                if type(params.limit) == 'table' then
                     -- TODO: check for lower and upper limits
                     table.insert(query, 'LIMIT')
                     table.insert(query, params.limit[1])
                     table.insert(query, params.limit[2])
                 end
 
-                if params.get then 
+                if params.get then
                     table.insert(query, 'GET')
                     table.insert(query, params.get)
                 end
@@ -632,20 +632,20 @@ commands = {
 
             request.multibulk(client, command, query)
         end
-    }), 
+    }),
 
     -- persistence control commands
-    save             = command('SAVE'), 
-    bgsave           = command('BGSAVE'), 
-    lastsave         = command('LASTSAVE'), 
-    shutdown         = command('SHUTDOWN', { request = fire_and_forget }), 
+    save             = command('SAVE'),
+    bgsave           = command('BGSAVE'),
+    lastsave         = command('LASTSAVE'),
+    shutdown         = command('SHUTDOWN', { request = fire_and_forget }),
     bgrewriteaof     = command('BGREWRITEAOF'),
 
     -- remote server control commands
     info             = command('INFO', {
-        response = function(response) 
+        response = function(response)
             local info = {}
-            response:gsub('([^\r\n]*)\r\n', function(kv) 
+            response:gsub('([^\r\n]*)\r\n', function(kv)
                 local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
                 if (k:match('db%d+')) then
                     info[k] = {}
@@ -660,6 +660,6 @@ commands = {
             return info
         end
     }),
-    slaveof          = command('SLAVEOF'), 
-    config           = command('CONFIG'), 
+    slaveof          = command('SLAVEOF'),
+    config           = command('CONFIG'),
 }
