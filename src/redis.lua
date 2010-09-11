@@ -3,7 +3,7 @@ module('Redis', package.seeall)
 local socket = require('socket')
 local uri    = require('socket.url')
 
-local redis_commands = {}
+local commands = {}
 local network, request, response = {}, {}, {}
 
 local defaults = { host = '127.0.0.1', port = 6379, tcp_nodelay = false }
@@ -260,6 +260,19 @@ function command(command, opts)
     end
 end
 
+function define_command(name, opts)
+    local opts = opts or {}
+    commands[string.lower(name)] = custom(
+        opts.command or string.upper(name),
+        opts.request or request.multibulk,
+        opts.response or nil
+    )
+end
+
+function undefine_command(name)
+    commands[string.lower(name)] = nil
+end
+
 -- ############################################################################
 
 local client_prototype = {
@@ -278,14 +291,17 @@ client_prototype.raw_cmd = function(client, buffer)
     return response.read(client)
 end
 
-client_prototype.add_command = function(client, name, opts)
+client_prototype.define_command = function(client, name, opts)
     local opts = opts or {}
-    redis_commands[name] = custom(
+    client[string.lower(name)] = custom(
         opts.command or string.upper(name),
         opts.request or request.multibulk,
         opts.response or nil
     )
-    client[name] = redis_commands[name]
+end
+
+client_prototype.undefine_command = function(client, name)
+    client[string.lower(name)] = nil
 end
 
 client_prototype.pipeline = function(client, block)
@@ -308,7 +324,7 @@ client_prototype.pipeline = function(client, block)
 
     local pipeline_mt = setmetatable({}, {
         __index = function(env, name)
-            local cmd = redis_commands[name]
+            local cmd = commands[name]
             if cmd == nil then
                 error('unknown redis command: ' .. name, 2)
             end
@@ -388,12 +404,12 @@ function connect(...)
     end
     client_socket:setoption('tcp-nodelay', tcp_nodelay)
 
-    return create_client(client_prototype, client_socket, redis_commands)
+    return create_client(client_prototype, client_socket, commands)
 end
 
 -- ############################################################################
 
-redis_commands = {
+commands = {
     -- miscellaneous commands
     ping       = command('PING', {
         response = function(response) return response == 'PONG' end

@@ -205,28 +205,53 @@ context("Client features", function()
         assert_equal(redis:raw_cmd("GET foo\r\n"), 'bar')
     end)
 
-    test("Define new commands or redefine existing ones", function()
-        redis:add_command('doesnotexist')
+    test("Create a new unbound command object", function()
+        local cmd = Redis.command('doesnotexist')
+        assert_nil(redis.doesnotexist)
+        assert_error(function() cmd(redis) end)
+
+        local cmd = Redis.command('ping', {
+            response = function(response) return response == 'PONG' end
+        })
+        assert_equal(cmd(redis), true)
+    end)
+
+    test("Define commands at module level", function()
+        Redis.define_command('doesnotexist')
+        local redis2 = utils.create_client(settings)
+
+        Redis.undefine_command('doesnotexist')
+        local redis3 = utils.create_client(settings)
+
+        assert_nil(redis.doesnotexist)
+        assert_not_nil(redis2.doesnotexist)
+        assert_nil(redis3.doesnotexist)
+    end)
+
+    test("Define new commands at client instance level)", function()
+        redis:define_command('doesnotexist')
         assert_not_nil(redis.doesnotexist)
         assert_error(function() redis:doesnotexist() end)
 
-        redis:add_command('ping')
+        redis:undefine_command('doesnotexist')
+        assert_nil(redis.doesnotexist)
+
+        redis:define_command('ping')
         assert_not_nil(redis.ping)
         assert_equal(redis:ping(), 'PONG')
 
-        redis:add_command('ping', {
+        redis:define_command('ping', {
             request = redis.requests.multibulk
         })
         assert_not_nil(redis.ping)
         assert_equal(redis:ping(), 'PONG')
 
-        redis:add_command('ping', {
+        redis:define_command('ping', {
             request  = redis.requests.multibulk,
             response = function(reply) return reply == 'PONG' end
         })
         assert_not_nil(redis.ping)
         assert_true(redis:ping())
-
     end)
 
     test("Pipelining commands", function()

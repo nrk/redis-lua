@@ -7,20 +7,20 @@ local params = {
     port = 6379,
 }
 
-local redis = Redis.connect(params)
-redis:select(15) -- for testing purposes
-
 -- new commands are defined as multibulk by default
-redis:add_command('hset')
+Redis.define_command('hset')
 
 -- you can also specify a response callback to parse raw replies
-redis:add_command('hgetall', { 
+Redis.define_command('hgetall', { 
     response = function(reply, command, ...)
         local new_reply = { }
         for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
         return new_reply
     end
 })
+
+local redis = Redis.connect(params)
+redis:select(15) -- for testing purposes
 
 redis:hset('user:1000', 'name', 'John Doe')
 redis:hset('user:1000', 'nickname', 'anonymous')
