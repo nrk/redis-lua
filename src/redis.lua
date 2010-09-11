@@ -6,7 +6,7 @@ local uri    = require('socket.url')
 local redis_commands = {}
 local network, request, response = {}, {}, {}
 
-local defaults = { host = '127.0.0.1', port = 6379 }
+local defaults = { host = '127.0.0.1', port = 6379, tcp_nodelay = false }
 local protocol = {
     newline = '\r\n',
     ok      = 'OK',
@@ -14,6 +14,16 @@ local protocol = {
     queued  = 'QUEUED',
     null    = 'nil'
 }
+
+local function parse_boolean(v)
+    if v == '1' or v == 'true' or v == 'TRUE' then
+        return true
+    elseif v == '0' or v == 'false' or v == 'FALSE' then
+        return false
+    else
+        return nil
+    end
+end
 
 local function toboolean(value) return value == 1 end
 
@@ -249,11 +259,15 @@ end
 function connect(...)
     local args = {...}
     local host, port = defaults.host, defaults.port
+    local tcp_nodelay = defaults.tcp_nodelay
 
     if #args == 1 then
         if type(args[1]) == 'table' then
             host = args[1].host or defaults.host
             port = args[1].port or defaults.port
+            if args[1].tcp_nodelay ~= nil then
+                tcp_nodelay = args[1].tcp_nodelay == true
+            end
         else
             local server = uri.parse(select(1, ...))
             if server.scheme then
@@ -261,6 +275,16 @@ function connect(...)
                     error('"' .. server.scheme .. '" is an invalid scheme')
                 end
                 host, port = server.host, server.port or defaults.port
+                if server.query then
+                    for k,v in server.query:gmatch('([-_%w]+)=([-_%w]+)') do
+                        if k == 'tcp_nodelay' or k == 'tcp-nodelay' then
+                            tcp_nodelay = parse_boolean(v)
+                            if tcp_nodelay == nil then
+                                tcp_nodelay = defaults.tcp_nodelay
+                            end
+                        end
+                    end
+                end
             else
                 host, port = server.path, defaults.port
             end
@@ -277,6 +301,7 @@ function connect(...)
     if not client_socket then
         error('could not connect to ' .. host .. ':' .. port)
     end
+    client_socket:setoption('tcp-nodelay', tcp_nodelay)
 
     local redis_client = {
         raw_cmd = function(self, buffer)
