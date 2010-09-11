@@ -176,10 +176,10 @@ context("Client initialization", function()
     test("Can connect successfully", function()
         local redis = Redis.connect(settings.host, settings.port)
         assert_type(redis, 'table')
-        assert_true(table.contains(table.keys(redis), 'socket'))
+        assert_true(table.contains(table.keys(redis.network), 'socket'))
 
-        redis.socket:send("PING\r\n")
-        assert_equal(redis.socket:receive('*l'), '+PONG')
+        redis.network.socket:send("PING\r\n")
+        assert_equal(redis.network.socket:receive('*l'), '+PONG')
     end)
 
     test("Accepts an URI for connection parameters", function()

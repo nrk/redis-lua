@@ -20,7 +20,7 @@ local function toboolean(value) return value == 1 end
 local function fire_and_forget(client, command) 
     -- let's fire and forget! the connection is closed as soon 
     -- as the SHUTDOWN command is received by the server.
-    network.write(client, command .. protocol.newline)
+    client.network.write(client, command .. protocol.newline)
     return false
 end
 
@@ -81,20 +81,20 @@ end
 -- ############################################################################
 
 function network.write(client, buffer)
-    local _, err = client.socket:send(buffer)
+    local _, err = client.network.socket:send(buffer)
     if err then error(err) end
 end
 
 function network.read(client, len)
     if len == nil then len = '*l' end
-    local line, err = client.socket:receive(len)
+    local line, err = client.network.socket:receive(len)
     if not err then return line else error('connection error: ' .. err) end
 end
 
 -- ############################################################################
 
 function response.read(client)
-    local res    = network.read(client)
+    local res    = client.network.read(client)
     local prefix = res:sub(1, -#res)
     local response_handler = protocol.prefixes[prefix]
 
@@ -135,7 +135,7 @@ function response.bulk(client, data)
         error('cannot parse ' .. str .. ' as data length.')
     else
         if len == -1 then return nil end
-        local next_chunk = network.read(client, len + 2)
+        local next_chunk = client.network.read(client, len + 2)
         return next_chunk:sub(1, -3);
     end
 end
@@ -186,9 +186,9 @@ function request.raw(client, buffer)
     local bufferType = type(buffer)
 
     if bufferType == 'table' then
-        network.write(client, table.concat(buffer))
+        client.network.write(client, table.concat(buffer))
     elseif bufferType == 'string' then
-        network.write(client, buffer)
+        client.network.write(client, buffer)
     else
         error('argument error: ' .. bufferType)
     end
@@ -236,7 +236,7 @@ local function custom(command, send, parse)
     end
 end
 
-local function command(command, opts)
+function command(command, opts)
     if opts == nil or type(opts) == 'function' then
         return custom(command, request.multibulk, opts)
     else
@@ -279,13 +279,17 @@ function connect(...)
     end
 
     local redis_client = {
-        socket  = client_socket, 
         raw_cmd = function(self, buffer)
             request.raw(self, buffer .. protocol.newline)
             return response.read(self)
         end, 
         requests = {
             multibulk = request.multibulk,
+        },
+        network = {
+            socket = client_socket,
+            read   = network.read,
+            write  = network.write,
         },
         add_command = function(self, name, opts)
             local opts = opts or {}
@@ -299,9 +303,9 @@ function connect(...)
         pipeline = function(self, block)
             local simulate_queued = '+' .. protocol.queued
             local requests, replies, parsers = {}, {}, {}
-            local __netwrite, __netread = network.write, network.read
+            local __netwrite, __netread = self.network.write, self.network.read
 
-            network.write = function(_, buffer)
+            self.network.write = function(_, buffer)
                 table.insert(requests, buffer)
             end
 
@@ -310,7 +314,7 @@ function connect(...)
             --       without further changes in the code, but it will surely 
             --       disappear when the new command-definition infrastructure 
             --       will finally be in place.
-            network.read = function()
+            self.network.read = function()
                 return simulate_queued
             end
 
@@ -330,10 +334,10 @@ function connect(...)
 
             local success, retval = pcall(setfenv(block, pipeline_mt), _G)
 
-            network.write, network.read = __netwrite, __netread
+            self.network.write, self.network.read = __netwrite, __netread
             if not success then error(retval, 0) end
 
-            network.write(self, table.concat(requests, ''))
+            self.network.write(self, table.concat(requests, ''))
 
             for i = 1, #requests do
                 local raw_reply, parser = response.read(self), parsers[i]
