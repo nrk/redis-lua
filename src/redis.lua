@@ -88,6 +88,12 @@ local function load_methods(proto, methods)
     return redis
 end
 
+local function create_client(proto, client_socket, methods)
+    local redis = load_methods(proto, methods)
+    redis.network.socket = client_socket
+    return redis
+end
+
 -- ############################################################################
 
 function network.write(client, buffer)
@@ -256,6 +262,85 @@ end
 
 -- ############################################################################
 
+local client_prototype = {
+    network = {
+        socket = nil,
+        read   = network.read,
+        write  = network.write,
+    },
+    requests = {
+        multibulk = request.multibulk,
+    },
+}
+
+client_prototype.raw_cmd = function(self, buffer)
+    request.raw(self, buffer .. protocol.newline)
+    return response.read(self)
+end
+
+client_prototype.add_command = function(self, name, opts)
+    local opts = opts or {}
+    redis_commands[name] = custom(
+        opts.command or string.upper(name),
+        opts.request or request.multibulk,
+        opts.response or nil
+    )
+    self[name] = redis_commands[name]
+end
+
+client_prototype.pipeline = function(self, block)
+    local simulate_queued = '+' .. protocol.queued
+    local requests, replies, parsers = {}, {}, {}
+    local __netwrite, __netread = self.network.write, self.network.read
+
+    self.network.write = function(_, buffer)
+        table.insert(requests, buffer)
+    end
+
+    -- TODO: this hack is necessary to temporarily reuse the current 
+    --       request -> response handling implementation of redis-lua 
+    --       without further changes in the code, but it will surely 
+    --       disappear when the new command-definition infrastructure 
+    --       will finally be in place.
+    self.network.read = function()
+        return simulate_queued
+    end
+
+    local pipeline_mt = setmetatable({}, {
+        __index = function(env, name)
+            local cmd = redis_commands[name]
+            if cmd == nil then
+                error('unknown redis command: ' .. name, 2)
+            end
+            return function(...)
+                local reply = cmd(self, ...)
+                table.insert(parsers, #requests, reply.parser)
+                return reply
+            end
+        end
+    })
+
+    local success, retval = pcall(setfenv(block, pipeline_mt), _G)
+
+    self.network.write, self.network.read = __netwrite, __netread
+    if not success then error(retval, 0) end
+
+    self.network.write(self, table.concat(requests, ''))
+
+    for i = 1, #requests do
+        local raw_reply, parser = response.read(self), parsers[i]
+        if parser then
+            table.insert(replies, i, parser(raw_reply))
+        else
+            table.insert(replies, i, raw_reply)
+        end
+    end
+
+    return replies
+end
+
+-- ############################################################################
+
 function connect(...)
     local args = {...}
     local host, port = defaults.host, defaults.port
@@ -303,81 +388,7 @@ function connect(...)
     end
     client_socket:setoption('tcp-nodelay', tcp_nodelay)
 
-    local redis_client = {
-        raw_cmd = function(self, buffer)
-            request.raw(self, buffer .. protocol.newline)
-            return response.read(self)
-        end, 
-        requests = {
-            multibulk = request.multibulk,
-        },
-        network = {
-            socket = client_socket,
-            read   = network.read,
-            write  = network.write,
-        },
-        add_command = function(self, name, opts)
-            local opts = opts or {}
-            redis_commands[name] = custom(
-                opts.command or string.upper(name),
-                opts.request or request.multibulk,
-                opts.response or nil
-            )
-            self[name] = redis_commands[name]
-        end, 
-        pipeline = function(self, block)
-            local simulate_queued = '+' .. protocol.queued
-            local requests, replies, parsers = {}, {}, {}
-            local __netwrite, __netread = self.network.write, self.network.read
-
-            self.network.write = function(_, buffer)
-                table.insert(requests, buffer)
-            end
-
-            -- TODO: this hack is necessary to temporarily reuse the current 
-            --       request -> response handling implementation of redis-lua 
-            --       without further changes in the code, but it will surely 
-            --       disappear when the new command-definition infrastructure 
-            --       will finally be in place.
-            self.network.read = function()
-                return simulate_queued
-            end
-
-            local pipeline_mt = setmetatable({}, { 
-                __index = function(env, name) 
-                    local cmd = redis_commands[name]
-                    if cmd == nil then 
-                        error('unknown redis command: ' .. name, 2)
-                    end
-                    return function(...) 
-                        local reply = cmd(self, ...)
-                        table.insert(parsers, #requests, reply.parser)
-                        return reply
-                    end
-                end 
-            })
-
-            local success, retval = pcall(setfenv(block, pipeline_mt), _G)
-
-            self.network.write, self.network.read = __netwrite, __netread
-            if not success then error(retval, 0) end
-
-            self.network.write(self, table.concat(requests, ''))
-
-            for i = 1, #requests do
-                local raw_reply, parser = response.read(self), parsers[i]
-                if parser then
-                    table.insert(replies, i, parser(raw_reply))
-                else
-                    table.insert(replies, i, raw_reply)
-                end
-            end
-
-            return replies
-        end,
-    }
-
-    return load_methods(redis_client, redis_commands)
+    return create_client(client_prototype, client_socket, redis_commands)
 end
 
 -- ############################################################################
