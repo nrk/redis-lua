@@ -234,10 +234,10 @@ end
 -- ############################################################################
 
 local function custom(command, send, parse)
-    return function(self, ...)
-        local has_reply = send(self, command, ...)
+    return function(client, ...)
+        local has_reply = send(client, command, ...)
         if has_reply == false then return end
-        local reply = response.read(self)
+        local reply = response.read(client)
 
         if type(reply) == 'table' and reply.queued then
             reply.parser = parse
@@ -273,27 +273,27 @@ local client_prototype = {
     },
 }
 
-client_prototype.raw_cmd = function(self, buffer)
-    request.raw(self, buffer .. protocol.newline)
-    return response.read(self)
+client_prototype.raw_cmd = function(client, buffer)
+    request.raw(client, buffer .. protocol.newline)
+    return response.read(client)
 end
 
-client_prototype.add_command = function(self, name, opts)
+client_prototype.add_command = function(client, name, opts)
     local opts = opts or {}
     redis_commands[name] = custom(
         opts.command or string.upper(name),
         opts.request or request.multibulk,
         opts.response or nil
     )
-    self[name] = redis_commands[name]
+    client[name] = redis_commands[name]
 end
 
-client_prototype.pipeline = function(self, block)
+client_prototype.pipeline = function(client, block)
     local simulate_queued = '+' .. protocol.queued
     local requests, replies, parsers = {}, {}, {}
-    local __netwrite, __netread = self.network.write, self.network.read
+    local __netwrite, __netread = client.network.write, client.network.read
 
-    self.network.write = function(_, buffer)
+    client.network.write = function(_, buffer)
         table.insert(requests, buffer)
     end
 
@@ -302,7 +302,7 @@ client_prototype.pipeline = function(self, block)
     --       without further changes in the code, but it will surely 
     --       disappear when the new command-definition infrastructure 
     --       will finally be in place.
-    self.network.read = function()
+    client.network.read = function()
         return simulate_queued
     end
 
@@ -313,7 +313,7 @@ client_prototype.pipeline = function(self, block)
                 error('unknown redis command: ' .. name, 2)
             end
             return function(...)
-                local reply = cmd(self, ...)
+                local reply = cmd(client, ...)
                 table.insert(parsers, #requests, reply.parser)
                 return reply
             end
@@ -322,13 +322,13 @@ client_prototype.pipeline = function(self, block)
 
     local success, retval = pcall(setfenv(block, pipeline_mt), _G)
 
-    self.network.write, self.network.read = __netwrite, __netread
+    client.network.write, client.network.read = __netwrite, __netread
     if not success then error(retval, 0) end
 
-    self.network.write(self, table.concat(requests, ''))
+    client.network.write(client, table.concat(requests, ''))
 
     for i = 1, #requests do
-        local raw_reply, parser = response.read(self), parsers[i]
+        local raw_reply, parser = response.read(client), parsers[i]
         if parser then
             table.insert(replies, i, parser(raw_reply))
         else
