@@ -1796,5 +1796,23 @@ context("Redis commands", function()
             assert_false(redis:exists('foo'))
             assert_false(redis:exists('hoge'))
         end)
+
+        test("MULTI / EXEC / DISCARD abstraction", function()
+            if version.major < 2 then return end
+
+            local assert_response_queued = assert_response_queued
+            local assert_true = assert_true
+
+            local replies = redis:transaction(function()
+              assert_response_queued(set('foo', 'bar'))
+              assert_true(discard())
+              assert_response_queued(ping())
+              assert_response_queued(echo('hello'))
+              assert_response_queued(echo('redis'))
+              assert_response_queued(exists('foo'))
+            end)
+
+            assert_table_values(replies, { true, 'hello', 'redis', false })
+        end)
     end)
 end)

@@ -355,6 +355,55 @@ client_prototype.pipeline = function(client, block)
     return replies
 end
 
+client_prototype.transaction = function(client, block)
+    local requests, replies, parsers = {}, {}, {}
+
+    local multiexec_mt = setmetatable({
+        discard = function(...)
+            if commands.discard == nil then
+                error('unknown redis command: ' .. name, 2)
+            end
+            local reply = commands.discard(client, ...)
+            requests, replies, parsers = {}, {}, {}
+            return reply
+        end
+
+        }, {
+
+        __index = function(env, name)
+            local cmd = commands[name]
+            if cmd == nil then
+                error('unknown redis command: ' .. name, 2)
+            end
+            return function(...)
+                if #requests == 0 then
+                    client:multi()
+                end
+                local reply = cmd(client, ...)
+                local req_count = #requests + 1
+                table.insert(requests, req_count, cmd)
+                table.insert(parsers, req_count, reply.parser)
+                return reply
+            end
+        end
+    })
+
+    local success, retval = pcall(setfenv(block, multiexec_mt), _G)
+    if not success then error(retval, 0) end
+    local raw_replies = client:exec()
+
+    for i = 1, #requests do
+        local raw_reply, parser = raw_replies[i], parsers[i]
+        if parser then
+            table.insert(replies, i, parser(raw_reply))
+        else
+            table.insert(replies, i, raw_reply)
+        end
+    end
+
+    return replies
+end
+
 -- ############################################################################
 
 function connect(...)
