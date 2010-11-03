@@ -201,7 +201,8 @@ context("Client features", function()
 
     test("Send raw commands", function()
         assert_equal(redis:raw_cmd("PING\r\n"), 'PONG')
-        assert_true(redis:raw_cmd("SET foo 3\r\nbar\r\n"))
+        --assert_true(redis:raw_cmd("SET foo 3\r\nbar\r\n"))
+        assert_true(redis:raw_cmd("*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"))
         assert_equal(redis:raw_cmd("GET foo\r\n"), 'bar')
     end)
 
