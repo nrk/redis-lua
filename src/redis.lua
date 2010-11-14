@@ -320,13 +320,17 @@ client_prototype.pipeline = function(client, block)
         return simulate_queued
     end
 
-    local pipeline_mt = setmetatable({}, {
+    local pipeline = setmetatable({}, {
         __index = function(env, name)
-            local cmd = commands[name]
+            local cmd = client[name]
             if cmd == nil then
-                error('unknown redis command: ' .. name, 2)
+                if _G[name] then
+                    return _G[name]
+                else
+                    error('unknown redis command: ' .. name, 2)
+                end
             end
-            return function(...)
+            return function(self, ...)
                 local reply = cmd(client, ...)
                 table.insert(parsers, #requests, reply.parser)
                 return reply
@@ -334,7 +338,7 @@ client_prototype.pipeline = function(client, block)
         end
     })
 
-    local success, retval = pcall(setfenv(block, pipeline_mt), _G)
+    local success, retval = pcall(block, pipeline)
 
     client.network.write, client.network.read = __netwrite, __netread
     if not success then error(retval, 0) end
