@@ -92,9 +92,13 @@ end
 
 local utils = {
     create_client = function(parameters)
+        if parameters == nil then
+            parameters = settings
+        end
+
         local redis = Redis.connect(parameters.host, parameters.port)
-        if settings.password then redis:auth(parameters.password) end
-        if settings.database then redis:select(parameters.database) end
+        if parameters.password then redis:auth(parameters.password) end
+        if parameters.database then redis:select(parameters.database) end
         redis:flushdb()
 
         local info = redis:info()
@@ -1823,9 +1827,6 @@ context("Redis commands", function()
 
         test("MULTI / EXEC / DISCARD abstraction", function()
             if version.major < 2 then return end
-
-            local assert_response_queued = assert_response_queued
-            local assert_true = assert_true
 
             local replies = redis:transaction(function(t)
                 assert_response_queued(t:set('foo', 'bar'))
