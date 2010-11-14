@@ -1838,5 +1838,20 @@ context("Redis commands", function()
 
             assert_table_values(replies, { true, 'hello', 'redis', false })
         end)
+
+        test("MULTI / EXEC / WATCH abstraction", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            local redis2 = utils.create_client(settings)
+            local watch_keys = { 'foo' }
+
+            assert_error(function()
+                redis:transaction(watch_keys, function(t)
+                    t:set('foo', 'bar')
+                    redis2:set('foo', 'hijacked')
+                    t:get('foo')
+                end)
+            end)
+        end)
     end)
 end)

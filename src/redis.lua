@@ -353,14 +353,26 @@ client_prototype.pipeline = function(client, block)
     return replies
 end
 
-client_prototype.transaction = function(client, block)
+client_prototype.transaction = function(client, ...)
     local queued, parsers, replies = 0, {}, {}
+    local block, watch_keys = nil, nil
+
+    local args = {...}
+    if #args == 2 and type(args[1]) == 'table' then
+        watch_keys = args[1]
+        block = args[2]
+    else
+        block = args[1]
+    end
 
     local transaction = setmetatable({
         discard = function(...)
             local reply = client:discard()
             queued, parsers, replies = 0, {}, {}
             return reply
+        end,
+        watch = function(...)
+            error('WATCH inside MULTI is not allowed')
         end,
 
         }, {
@@ -377,6 +389,11 @@ client_prototype.transaction = function(client, block)
 
             return function(self, ...)
                 if queued == 0 then
+                    if client.watch and watch_keys then
+                        for _, key in pairs(watch_keys) do
+                            client:watch(key)
+                        end
+                    end
                     client:multi()
                 end
                 local reply = cmd(client, ...)
