@@ -356,43 +356,52 @@ client_prototype.pipeline = function(client, block)
 end
 
 client_prototype.transaction = function(client, block)
-    local requests, replies, parsers = {}, {}, {}
+    local queued, parsers, replies = 0, {}, {}
 
-    local multiexec_mt = setmetatable({
+    local transaction = setmetatable({
         discard = function(...)
-            if commands.discard == nil then
-                error('unknown redis command: ' .. name, 2)
-            end
-            local reply = commands.discard(client, ...)
-            requests, replies, parsers = {}, {}, {}
+            local reply = client:discard()
+            queued, parsers, replies = 0, {}, {}
             return reply
-        end
+        end,
 
         }, {
 
         __index = function(env, name)
-            local cmd = commands[name]
+            local cmd = client[name]
             if cmd == nil then
-                error('unknown redis command: ' .. name, 2)
+                if _G[name] then
+                    return _G[name]
+                else
+                    error('unknown redis command: ' .. name, 2)
+                end
             end
-            return function(...)
-                if #requests == 0 then
+
+            return function(self, ...)
+                if queued == 0 then
                     client:multi()
                 end
                 local reply = cmd(client, ...)
-                local req_count = #requests + 1
-                table.insert(requests, req_count, cmd)
-                table.insert(parsers, req_count, reply.parser)
+                if type(reply) ~= 'table' or reply.queued ~= true then
+                    error('a QUEUED reply was expected')
+                end
+                queued = queued + 1
+                table.insert(parsers, queued, reply.parser)
                 return reply
             end
-        end
+        end,
     })
 
-    local success, retval = pcall(setfenv(block, multiexec_mt), _G)
+    local success, retval = pcall(block, transaction)
     if not success then error(retval, 0) end
-    local raw_replies = client:exec()
+    if queued == 0 then return replies end
 
-    for i = 1, #requests do
+    local raw_replies = client:exec()
+    if raw_replies == nil then
+        error("MULTI/EXEC transaction aborted by the server")
+    end
+
+    for i = 1, queued do
         local raw_reply, parser = raw_replies[i], parsers[i]
         if parser then
             table.insert(replies, i, parser(raw_reply))
