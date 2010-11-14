@@ -1796,19 +1796,44 @@ context("Redis commands", function()
             assert_false(redis:exists('hoge'))
         end)
 
+        test("WATCH", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            redis2 = utils.create_client(settings)
+            assert_true(redis:set('foo', 'bar'))
+            assert_true(redis:watch('foo'))
+            assert_true(redis:multi())
+            assert_response_queued(redis:get('foo'))
+            assert_true(redis2:set('foo', 'hijacked'))
+            assert_nil(redis:exec())
+        end)
+
+        test("UNWATCH", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            redis2 = utils.create_client(settings)
+            assert_true(redis:set('foo', 'bar'))
+            assert_true(redis:watch('foo'))
+            assert_true(redis:unwatch())
+            assert_true(redis:multi())
+            assert_response_queued(redis:get('foo'))
+            assert_true(redis2:set('foo', 'hijacked'))
+            assert_table_values(redis:exec(), { 'hijacked' })
+        end)
+
         test("MULTI / EXEC / DISCARD abstraction", function()
             if version.major < 2 then return end
 
             local assert_response_queued = assert_response_queued
             local assert_true = assert_true
 
-            local replies = redis:transaction(function()
-              assert_response_queued(set('foo', 'bar'))
-              assert_true(discard())
-              assert_response_queued(ping())
-              assert_response_queued(echo('hello'))
-              assert_response_queued(echo('redis'))
-              assert_response_queued(exists('foo'))
+            local replies = redis:transaction(function(t)
+                assert_response_queued(t:set('foo', 'bar'))
+                assert_true(t:discard())
+                assert_response_queued(t:ping())
+                assert_response_queued(t:echo('hello'))
+                assert_response_queued(t:echo('redis'))
+                assert_response_queued(t:exists('foo'))
             end)
 
             assert_table_values(replies, { true, 'hello', 'redis', false })
