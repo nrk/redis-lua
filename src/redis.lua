@@ -482,6 +482,8 @@ commands = {
     multi      = command('MULTI'),
     exec       = command('EXEC'),
     discard    = command('DISCARD'),
+    watch      = command('WATCH'),
+    unwatch    = command('UNWATCH'),
 
     -- commands operating on string values
     set        = command('SET'),
