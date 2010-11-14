@@ -6,7 +6,7 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 
 ## Main features ##
 
-- Support for Redis 1.2 and 2.0
+- Support for Redis >= 1.2
 - Command pipelining
 - User-definable commands
 
@@ -36,6 +36,22 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
     local sorted = redis:sort('usr:nrk:ids', {
          sort = 'asc', alpha = true, limit = { 1, 5 }
     })      -- {1=10,2=2,3=23,4=3,5=4}
+
+### Pipeline commands
+
+    local replies = redis:pipeline(function(p)
+        p:incrby('counter', 10)
+        p:incrby('counter', 30)
+        p:get('counter')
+    end)
+
+### Leverage Redis MULTI / EXEC transaction (Redis > 2.0)
+
+    local replies = redis:transaction(function(t)
+        p:incrby('counter', 10)
+        p:incrby('counter', 30)
+        p:get('counter')
+    end)
 
 ### Get useful information from the server ###
 
