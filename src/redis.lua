@@ -90,7 +90,14 @@ end
 
 local function create_client(proto, client_socket, methods)
     local redis = load_methods(proto, methods)
-    redis.network.socket = client_socket
+    redis.network = {
+        socket = client_socket,
+        read   = network.read,
+        write  = network.write,
+    }
+    redis.requests = {
+        multibulk = request.multibulk,
+    }
     return redis
 end
 
@@ -275,16 +282,7 @@ end
 
 -- ############################################################################
 
-local client_prototype = {
-    network = {
-        socket = nil,
-        read   = network.read,
-        write  = network.write,
-    },
-    requests = {
-        multibulk = request.multibulk,
-    },
-}
+local client_prototype = {}
 
 client_prototype.raw_cmd = function(client, buffer)
     request.raw(client, buffer .. protocol.newline)
