@@ -2,8 +2,8 @@ package = "redis-lua"
 version = "1.0.1-0"
 
 source = {
-   url = "http://download.github.com/nrk-redis-lua-v1.0.1-0-g36cb1d2.tar.gz",
-   md5 = "6fba15da590b4cbaffbc48a9359543f4"
+   url = "http://cloud.github.com/downloads/nrk/redis-lua/redis-lua-1.0.1-0.tar.gz",
+   md5 = "0e00178a8bc7d68d463007eec49117d5"
 }
 
 description = {

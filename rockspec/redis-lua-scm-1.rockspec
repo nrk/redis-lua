@@ -23,7 +23,7 @@ build = {
    type = "none",
    install = {
       lua = {
-         ["redis"] = "src/redis.lua"
+         redis = "src/redis.lua"
       }
    }
 }
