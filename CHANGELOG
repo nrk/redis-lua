@@ -8,6 +8,15 @@ v2.0.0 (2010-xx-xx)
     has been removed from the library. Commands are defined as multibulk 
     requests by default.
 
+  * The public interface for pipelining has been slightly changed (see the 
+    examples/pipeline.lua file for more details).
+
+  * The public interface for Redis transactions (MULTI/EXEC) basically works 
+    in the same way of pipelining.
+
+  * Developers can now define their own commands at module level and not only 
+    on client instances.
+
 v1.0.1 (2010-07-30)
   * Providing a more generalized version of the multibulk request serializer.
 
