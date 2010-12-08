@@ -358,8 +358,8 @@ client_prototype.pipeline = function(client, block)
 end
 
 client_prototype.transaction = function(client, ...)
-    local queued, parsers, replies = 0, {}, {}
-    local block, watch_keys = nil, nil
+    local queued_parsers, replies = {}, {}
+    local block, watch_keys = nil, {}
 
     local args = {...}
     if #args == 2 and type(args[1]) == 'table' then
@@ -369,64 +369,49 @@ client_prototype.transaction = function(client, ...)
         block = args[1]
     end
 
-    local transaction = setmetatable({
+    local transaction_client = setmetatable({
         discard = function(...)
             local reply = client:discard()
-            queued, parsers, replies = 0, {}, {}
+            queued_parsers, replies = {}, {}
             return reply
         end,
         watch = function(...)
             error('WATCH inside MULTI is not allowed')
         end,
-
-        }, {
-
-        __index = function(env, name)
-            local cmd = client[name]
-            if cmd == nil then
-                if _G[name] then
-                    return _G[name]
-                else
-                    error('unknown redis command: ' .. name, 2)
-                end
-            end
-
-            return function(self, ...)
-                if queued == 0 then
-                    if client.watch and watch_keys then
+    }, { __index = function(t, k)
+            local cmd = client[k]
+            if type(cmd) == "function" then
+                local function queuey(self, ...)
+                    if #queued_parsers == 0 then
                         for _, key in pairs(watch_keys) do
                             client:watch(key)
                         end
+                        client:multi()
+                    end 
+                    local reply = cmd(client, ...)
+                    print(reply, type(reply), k)
+                    if type(reply) ~= 'table' or reply.queued ~= true then
+                        error('a QUEUED reply was expected')
                     end
-                    client:multi()
+                    table.insert(queued_parsers, reply.parser or function(...) return ... end)
+                    return reply
                 end
-                local reply = cmd(client, ...)
-                if type(reply) ~= 'table' or reply.queued ~= true then
-                    error('a QUEUED reply was expected')
-                end
-                queued = queued + 1
-                table.insert(parsers, queued, reply.parser)
-                return reply
+                t[k]=queuey
+                return queuey
+            else
+                return cmd
             end
-        end,
+        end
     })
 
-    local success, retval = pcall(block, transaction)
+    local success, retval = pcall(block, transaction_client)
     if not success then error(retval, 0) end
-    if queued == 0 then return replies end
+    if #parsers == 0 then return replies end
 
-    local raw_replies = client:exec()
-    if raw_replies == nil then
-        error("MULTI/EXEC transaction aborted by the server")
-    end
+    local raw_replies = assert(client:exec(), "MULTI/EXEC transaction aborted by the server")
 
-    for i = 1, queued do
-        local raw_reply, parser = raw_replies[i], parsers[i]
-        if parser then
-            table.insert(replies, i, parser(raw_reply))
-        else
-            table.insert(replies, i, raw_reply)
-        end
+    for i, parser in pairs(parsers) do
+        table.insert(replies, i, raw_replies[i])
     end
 
     return replies
