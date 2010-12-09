@@ -1784,7 +1784,6 @@ context("Redis commands", function()
             -- should raise an error when trying to EXEC without having previously issued MULTI
             assert_error(function() redis:exec() end)
         end)
-
         test("DISCARD (redis:discard)", function()
             if version.major < 2 then return end
 
@@ -1836,7 +1835,6 @@ context("Redis commands", function()
                 assert_response_queued(t:echo('redis'))
                 assert_response_queued(t:exists('foo'))
             end)
-
             assert_table_values(replies, { true, 'hello', 'redis', false })
         end)
 
@@ -1854,5 +1852,55 @@ context("Redis commands", function()
                 end)
             end)
         end)
+
+        test("WATCH / MULTI / EXEC check-and-set coroutine abstraction", function()
+            if version.major < 2 then return end
+            local redis2 = utils.create_client(settings)        
+            local n = 5 
+            local replies = redis:check_and_set("foobarr", function(t)
+                t:set('foobar', 'bazaar')
+                local val = t:get('foobar')
+                coroutine.yield()
+                assert_response_queued(t:set('discardable', 'bar'))
+                assert_true(t:discard())
+                assert_response_queued(t:ping())
+                assert_response_queued(t:echo('hello'))
+                assert_response_queued(t:echo('redis'))
+                if n>0 then
+                    n = n-1
+                    redis2:set("foobarr", n)
+                end
+                assert_response_queued(t:exists('foo'))
+                assert_response_queued(t:get('foobar'))
+                assert_response_queued(t:get('foobarr'))
+            end)
+            assert_table_values(replies, { true, 'hello', 'redis', false, "bazaar", '0' })
+        end)
+
+        test("WATCH / MULTI / EXEC check-and-set two-block abstraction", function()
+            if version.major < 2 then return end
+            local redis2 = utils.create_client(settings)        
+            local n = 5 
+            local replies = redis:check_and_set("foobarr", function(t)
+                t:set('foobar', 'bazaar')
+                local val = t:get('foobar')
+            end, function(t)
+                assert_response_queued(t:set('discardable', 'bar'))
+                assert_true(t:discard())
+                assert_response_queued(t:ping())
+                assert_response_queued(t:echo('hello'))
+                assert_response_queued(t:echo('redis'))
+                if n>0 then
+                    n = n-1
+                    redis2:set("foobarr", n)
+                end
+                assert_response_queued(t:exists('foo'))
+                assert_response_queued(t:get('foobar'))
+                assert_response_queued(t:get('foobarr'))
+            end)
+            assert_table_values(replies, { true, 'hello', 'redis', false, "bazaar", '0' })
+        end)
+
+
     end)
 end)
