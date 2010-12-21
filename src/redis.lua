@@ -501,8 +501,8 @@ commands = {
     multi      = command('MULTI'),
     exec       = command('EXEC'),
     discard    = command('DISCARD'),
-    watch      = command('WATCH'),
-    unwatch    = command('UNWATCH'),
+    watch      = command('WATCH'),          -- >= 2.2
+    unwatch    = command('UNWATCH'),        -- >= 2.2
 
     -- commands operating on string values
     set        = command('SET'),
@@ -525,6 +525,11 @@ commands = {
     type       = command('TYPE'),
     append     = command('APPEND'),         -- >= 2.0
     substr     = command('SUBSTR'),         -- >= 2.0
+    strlen     = command('STRLEN'),         -- >= 2.2
+    setrange   = command('SETRANGE'),       -- >= 2.2
+    getrange   = command('GETRANGE'),       -- >= 2.2
+    setbit     = command('SETBIT'),         -- >= 2.2
+    getbit     = command('GETBIT'),         -- >= 2.2
 
     -- commands operating on the key space
     keys       = command('KEYS', {
@@ -555,6 +560,7 @@ commands = {
     expireat  = command('EXPIREAT', { response = toboolean }),
     dbsize    = command('DBSIZE'),
     ttl       = command('TTL'),
+    persist   = command('PERSIST', { response = toboolean }),     -- >= 2.2
 
     -- commands operating on lists
     rpush            = command('RPUSH'),
@@ -570,6 +576,10 @@ commands = {
     rpoplpush        = command('RPOPLPUSH'),
     blpop            = command('BLPOP'),
     brpop            = command('BRPOP'),
+    rpushx           = command('RPUSHX'),           -- >= 2.2
+    lpushx           = command('LPUSHX'),           -- >= 2.2
+    linsert          = command('LINSERT'),          -- >= 2.2
+    brpoplpush       = command('BRPOPLPUSH'),       -- >= 2.2
 
     -- commands operating on sets
     sadd             = command('SADD', { response = toboolean }),
@@ -594,6 +604,7 @@ commands = {
     zrange           = command('ZRANGE', { response = zset_range_parse }),
     zrevrange        = command('ZREVRANGE', { response = zset_range_parse }),
     zrangebyscore    = command('ZRANGEBYSCORE'),
+    zrevrangebyscore = command('ZREVRANGEBYSCORE', { response = zset_range_parse }),    -- >= 2.2
     zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }),
     zinterstore      = command('ZINTERSTORE', { request = zset_store_request }),
     zcount           = command('ZCOUNT'),
