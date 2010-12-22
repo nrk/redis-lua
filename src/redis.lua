@@ -375,7 +375,7 @@ do
             for i, v in pairs(queued_parsers) do
                 queued_parsers[i]=nil
             end
-            coro = initialize_transaction(client, watch_keys, block)
+            coro = initialize_transaction(client, watch_keys, block, queued_parsers)
             return reply
         end
         transaction_client.watch = function(...)
@@ -438,9 +438,7 @@ do
         else
             error("Invalid parameters for redis transaction.")
         end
-        print(tostring(block))
         return nil or transaction(client, watch_keys, function(client, ...)
-            print("foobarbar")
             coroutine.yield()
             return block(client, ...) --can't wrap this in pcall because we're in a coroutine.
         end)
