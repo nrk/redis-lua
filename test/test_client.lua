@@ -1360,6 +1360,11 @@ context("Redis commands", function()
                   { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
             )
 
+            assert_table_values(
+                redis:zrange('zset', 0, 2, { withscores = true }),
+                  { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
+            )
+
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:zrange('foo', 0, -1)
@@ -1382,6 +1387,11 @@ context("Redis commands", function()
                 { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
             )
 
+            assert_table_values(
+                redis:zrevrange('zset', 0, 2, { withscores = true }),
+                { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
+            )
+
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:zrevrange('foo', 0, -1)
@@ -1401,13 +1411,38 @@ context("Redis commands", function()
                 { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
             )
 
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, { withscores = true }),
+                { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
+            )
+
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, { limit = { 1, 2 } }),
+                { 'd', 'e' }
+            )
+
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, {
+                    limit = { offset = 1, count = 2 }
+                }),
+                { 'd', 'e' }
+            )
+
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, {
+                    limit = { offset = 1, count = 2 },
+                    withscores = true
+                }),
+                { { 'd', '20' }, { 'e', '20' } }
+            )
+
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:zrangebyscore('foo', 0, -1)
             end)
         end)
 
-        test("ZREVRANGEBYSCORE (redis:zrangebyscore)", function()
+        test("ZREVRANGEBYSCORE (redis:zrevrangebyscore)", function()
             local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
 
             assert_table_values(redis:zrevrangebyscore('zset', -10, -10), { 'a' })
@@ -1420,7 +1455,25 @@ context("Redis commands", function()
                 { { 'e', '20' }, { 'd', '20' }, { 'c', '10' } }
             )
 
-            -- TODO: add support for LIMIT and combined LIMIT + WITHSCORES
+            assert_table_values(
+                redis:zrevrangebyscore('zset', 20, 10, { limit = { 1, 2 } }),
+                { 'd', 'c' }
+            )
+
+            assert_table_values(
+                redis:zrevrangebyscore('zset', 20, 10, {
+                    limit = { offset = 1, count = 2 }
+                }),
+                { 'd', 'c' }
+            )
+
+            assert_table_values(
+                redis:zrevrangebyscore('zset', 20, 10, {
+                    limit = { offset = 1, count = 2 },
+                    withscores = true
+                }),
+                { { 'd', '20' }, { 'c', '10' } }
+            )
 
             assert_error(function()
                 redis:set('foo', 'bar')

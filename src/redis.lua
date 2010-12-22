@@ -36,7 +36,8 @@ end
 
 local function zset_range_parse(reply, command, ...)
     local args = {...}
-    if #args == 4 and string.lower(args[4]) == 'withscores' then
+    local opts = args[4]
+    if opts and (opts.withscores or string.lower(tostring(opts)) == 'withscores') then
         local new_reply = { }
         for i = 1, #reply, 2 do
             table.insert(new_reply, { reply[i], reply[i + 1] })
@@ -45,6 +46,39 @@ local function zset_range_parse(reply, command, ...)
     else
         return reply
     end
+end
+
+local function zset_range_request(client, command, ...)
+    local args, opts = {...}, { }
+
+    if #args >= 1 and type(args[#args]) == 'table' then
+        local options = table.remove(args, #args)
+        if options.withscores then
+            table.insert(opts, 'WITHSCORES')
+        end
+    end
+
+    for _, v in pairs(opts) do table.insert(args, v) end
+    request.multibulk(client, command, args)
+end
+
+local function zset_range_byscore_request(client, command, ...)
+    local args, opts = {...}, { }
+
+    if #args >= 1 and type(args[#args]) == 'table' then
+        local options = table.remove(args, #args)
+        if options.limit then
+            table.insert(opts, 'LIMIT')
+            table.insert(opts, options.limit.offset or options.limit[1])
+            table.insert(opts, options.limit.count or options.limit[2])
+        end
+        if options.withscores then
+            table.insert(opts, 'WITHSCORES')
+        end
+    end
+
+    for _, v in pairs(opts) do table.insert(args, v) end
+    request.multibulk(client, command, args)
 end
 
 local function zset_store_request(client, command, ...)
@@ -601,10 +635,22 @@ commands = {
     zadd             = command('ZADD', { response = toboolean }),
     zincrby          = command('ZINCRBY'),
     zrem             = command('ZREM', { response = toboolean }),
-    zrange           = command('ZRANGE', { response = zset_range_parse }),
-    zrevrange        = command('ZREVRANGE', { response = zset_range_parse }),
-    zrangebyscore    = command('ZRANGEBYSCORE', { response = zset_range_parse }),
-    zrevrangebyscore = command('ZREVRANGEBYSCORE', { response = zset_range_parse }),    -- >= 2.2
+    zrange           = command('ZRANGE', {
+        request  = zset_range_request,
+        response = zset_range_parse,
+    }),
+    zrevrange        = command('ZREVRANGE', {
+        request  = zset_range_request,
+        response = zset_range_parse,
+    }),
+    zrangebyscore    = command('ZRANGEBYSCORE', {
+        request  = zset_range_byscore_request,
+        response = zset_range_parse,
+    }),
+    zrevrangebyscore = command('ZREVRANGEBYSCORE', {              -- >= 2.2
+        request  = zset_range_byscore_request,
+        response = zset_range_parse,
+    }),
     zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }),
     zinterstore      = command('ZINTERSTORE', { request = zset_store_request }),
     zcount           = command('ZCOUNT'),
