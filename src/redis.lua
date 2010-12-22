@@ -34,20 +34,6 @@ local function fire_and_forget(client, command)
     return false
 end
 
-local function zset_range_parse(reply, command, ...)
-    local args = {...}
-    local opts = args[4]
-    if opts and (opts.withscores or string.lower(tostring(opts)) == 'withscores') then
-        local new_reply = { }
-        for i = 1, #reply, 2 do
-            table.insert(new_reply, { reply[i], reply[i + 1] })
-        end
-        return new_reply
-    else
-        return reply
-    end
-end
-
 local function zset_range_request(client, command, ...)
     local args, opts = {...}, { }
 
@@ -79,6 +65,20 @@ local function zset_range_byscore_request(client, command, ...)
 
     for _, v in pairs(opts) do table.insert(args, v) end
     request.multibulk(client, command, args)
+end
+
+local function zset_range_reply(reply, command, ...)
+    local args = {...}
+    local opts = args[4]
+    if opts and (opts.withscores or string.lower(tostring(opts)) == 'withscores') then
+        local new_reply = { }
+        for i = 1, #reply, 2 do
+            table.insert(new_reply, { reply[i], reply[i + 1] })
+        end
+        return new_reply
+    else
+        return reply
+    end
 end
 
 local function zset_store_request(client, command, ...)
@@ -637,19 +637,19 @@ commands = {
     zrem             = command('ZREM', { response = toboolean }),
     zrange           = command('ZRANGE', {
         request  = zset_range_request,
-        response = zset_range_parse,
+        response = zset_range_reply,
     }),
     zrevrange        = command('ZREVRANGE', {
         request  = zset_range_request,
-        response = zset_range_parse,
+        response = zset_range_reply,
     }),
     zrangebyscore    = command('ZRANGEBYSCORE', {
         request  = zset_range_byscore_request,
-        response = zset_range_parse,
+        response = zset_range_reply,
     }),
     zrevrangebyscore = command('ZREVRANGEBYSCORE', {              -- >= 2.2
         request  = zset_range_byscore_request,
-        response = zset_range_parse,
+        response = zset_range_reply,
     }),
     zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }),
     zinterstore      = command('ZINTERSTORE', { request = zset_store_request }),
