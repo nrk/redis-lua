@@ -1396,10 +1396,9 @@ context("Redis commands", function()
             assert_table_values(redis:zrangebyscore('zset', 20, 20), { 'd', 'e' })
             assert_empty(redis:zrangebyscore('zset', 30, 0))
 
-            -- TODO: should return a kind of tuple when using 'withscores'
             assert_table_values(
                 redis:zrangebyscore('zset', 10, 20, 'withscores'),
-                { 'c', '10', 'd', '20', 'e', '20' }
+                { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
             )
 
             assert_error(function()

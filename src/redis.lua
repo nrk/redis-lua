@@ -603,7 +603,7 @@ commands = {
     zrem             = command('ZREM', { response = toboolean }),
     zrange           = command('ZRANGE', { response = zset_range_parse }),
     zrevrange        = command('ZREVRANGE', { response = zset_range_parse }),
-    zrangebyscore    = command('ZRANGEBYSCORE'),
+    zrangebyscore    = command('ZRANGEBYSCORE', { response = zset_range_parse }),
     zrevrangebyscore = command('ZREVRANGEBYSCORE', { response = zset_range_parse }),    -- >= 2.2
     zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }),
     zinterstore      = command('ZINTERSTORE', { request = zset_store_request }),
