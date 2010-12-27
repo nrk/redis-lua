@@ -16,20 +16,15 @@ local replies = redis:transaction(function(t)
     t:decrby('counter', 15)
 end)
 
---check-and-set
-local replies = redis:check_and_set("somekey", function(t)
+-- check-and-set (CAS)
+redis:set('foo', 'bar')
+local replies = redis:transaction({ cas = 'foo' }, function(t)
     --executed after WATCH but before MULTI
-    local val = t:get("somekey")
-    coroutine.yield()
-    --executing during MUTI block
-    t:set("somekey", val .. "suffix")
-end)
---alternate form
-local val
-local replies = redis:check_and_set("somekey", function(t)
-    val = t:get("somekey")
-end, function(t)
-    t:set("somekey", val)
+    local val = t:get('foo')
+    t:multi()
+    --executing during MULTI block
+    t:set('foo', 'foo' .. val)
+    t:get('foo')
 end)
 
 for _, reply in pairs(replies) do

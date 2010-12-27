@@ -1,10 +1,10 @@
-  * Support for WATCH / MULTI / EXEC check-and-set transactions through 
-    coroutines.
+v2.0.1 (2011-xx-xx)
+  * Support for WATCH / MULTI / EXEC check-and-set (CAS) transactions 
+    through coroutines.
  
-  * Transactions can take a single string for watch_key as well as a 
-    table.
+  * Transactions can take a single string for watch_key as well as a table.
   
-v2.0.0 (2010-xx-xx)
+v2.0.0 (2010-11-27)
   * The client library is no longer compatible with Redis 1.0.
 
   * Support for long names of Redis commands has been dropped, the client now 

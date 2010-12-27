@@ -402,8 +402,14 @@ do
         end
 
         local transaction_client = setmetatable({}, {__index=client})
+        transaction_client.multi = function(...)
+            client:multi()
+            coroutine.yield()
+        end
+
         assert(coroutine.resume(coro, transaction_client))
 
+        transaction_client.multi = nil
         transaction_client.discard = function(...)
             local reply = client:discard()
             for i, v in pairs(queued_parsers) do
@@ -431,7 +437,6 @@ do
                 end
             end
         })
-        client:multi()
         return coro
     end
 
@@ -461,10 +466,10 @@ do
         end
 
         return replies
-   end
+    end
 
     client_prototype.transaction = function(client, arg1, arg2)
-       local watch_keys, block
+        local watch_keys, block
         if not arg2 then
             watch_keys, block = {}, arg1
         elseif arg1 then --and arg2, implicitly
@@ -472,29 +477,22 @@ do
         else
             error("Invalid parameters for redis transaction.")
         end
-        return nil or transaction(client, watch_keys, function(client, ...)
-            coroutine.yield()
-            return block(client, ...) --can't wrap this in pcall because we're in a coroutine.
-        end)
-    end
 
-    client_prototype.check_and_set = function(client, watch_keys, block1, block2)
-        local block
-        if type(watch_keys) ~= 'table' then
-            watch_keys = { watch_keys }
-        end
-        assert(type(block1)=="function", "Check-and-set operation expects a function parameter")
-        if not block2 then
-            block = block1
-        else --we were given two blocks
-            assert(type(block2)=="function", "Check-and-set operation expects third parameter, if present, to be a function.")
-            block = function(client)
-                local res = { block1(client) }
-                coroutine.yield()
-                return block2(client, unpack(res))
+        if watch_keys.cas then
+	        if watch_keys.cas == true then
+		        watch_keys = { }
+		    else
+	            watch_keys = type(watch_keys.cas) == "table" and watch_keys.cas or { watch_keys.cas }
+	        end
+	    else
+		    local tx_block = block
+		    block = function(client, ...)
+                client:multi()
+                return tx_block(client, ...) --can't wrap this in pcall because we're in a coroutine.
             end
         end
-        return transaction(client, watch_keys, block, 10)
+
+        return nil or transaction(client, watch_keys, block, 10)
     end
 end
 -- ############################################################################
