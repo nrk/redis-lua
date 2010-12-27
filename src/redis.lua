@@ -451,11 +451,12 @@ do
             end
             return replies
         end
-        local success, retval = assert(coroutine.resume(coro))
-        
-        if #queued_parsers == 0 then 
+
+        local success, retval = coroutine.resume(coro)
+        if #queued_parsers == 0 or not success then
             client:discard()
-            return replies 
+            assert(success, retval)
+            return replies
         end
 
         local raw_replies = client:exec()

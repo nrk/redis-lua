@@ -2104,6 +2104,16 @@ context("Redis commands", function()
                 assert_response_queued(t:exists('foo'))
             end)
             assert_table_values(replies, { true, 'hello', 'redis', false })
+
+            -- clean up transaction after client-side errors
+            assert_error(function()
+                redis:transaction(function(t)
+                    t:lpush('metavars', 'foo')
+                    error('whoops!')
+                    t:lpush('metavars', 'hoge')
+                end)
+            end)
+            assert_false(redis:exists('metavars'))
         end)
 
         test("WATCH / MULTI / EXEC abstraction", function()
