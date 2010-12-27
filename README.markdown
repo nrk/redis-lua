@@ -48,9 +48,17 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 ### Leverage Redis MULTI / EXEC transaction (Redis > 2.0)
 
     local replies = redis:transaction(function(t)
-        p:incrby('counter', 10)
-        p:incrby('counter', 30)
-        p:get('counter')
+        t:incrby('counter', 10)
+        t:incrby('counter', 30)
+        t:get('counter')
+    end)
+
+### Leverage WATCH / MULTI / EXEC for check-and-set operations 
+    local replies = redis:check_and_set("key_to_watch", function(t)
+        local val = t:get("key_to_watch")
+        coroutine.yield()
+        t:set("akey", val)
+        t:set("anotherkey", val)
     end)
 
 ### Get useful information from the server ###
