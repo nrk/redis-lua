@@ -2086,6 +2086,16 @@ context("Redis commands", function()
             if version.major < 2 then return end
 
             local replies = redis:transaction(function(t)
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+
+            local replies = redis:transaction(function(t)
+                t:discard()
+            end)
+            assert_table_values(replies, { })
+
+            local replies = redis:transaction(function(t)
                 assert_response_queued(t:set('foo', 'bar'))
                 assert_true(t:discard())
                 assert_response_queued(t:ping())
@@ -2102,6 +2112,11 @@ context("Redis commands", function()
             local redis2 = utils.create_client(settings)
             local watch_keys = { 'foo' }
 
+            local replies = redis:transaction(watch_keys, function(t)
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+
             assert_error(function()
                 redis:transaction(watch_keys, function(t)
                     t:set('foo', 'bar')
@@ -2113,6 +2128,17 @@ context("Redis commands", function()
 
         test("WATCH / MULTI / EXEC with check-and-set (CAS) abstraction", function()
             if version.major >= 2 and version.minor < 1 then return end
+
+            local replies = redis:transaction({ cas = 'foo' }, function(t)
+                -- empty transaction (with missing call to t:multi())
+            end)
+            assert_table_values(replies, { })
+
+            local replies = redis:transaction({ cas = 'foo' }, function(t)
+                t:multi()
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
 
             local redis2 = utils.create_client(settings)        
             local n = 5 

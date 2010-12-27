@@ -444,6 +444,13 @@ do
         local queued_parsers, replies = {}, {}
         local coro = initialize_transaction(client, watch_keys, coroutine_block, queued_parsers)
 
+        -- do not fail if the coroutine has not been resumed (e.g. missing t:multi() with CAS)
+        if coroutine.status(coro) == 'dead' then
+            if #watch_keys > 0 then
+                client:unwatch()
+            end
+            return replies
+        end
         local success, retval = assert(coroutine.resume(coro))
         
         if #queued_parsers == 0 then 
