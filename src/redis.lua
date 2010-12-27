@@ -479,14 +479,14 @@ do
         end
 
         if watch_keys.cas then
-	        if watch_keys.cas == true then
-		        watch_keys = { }
-		    else
-	            watch_keys = type(watch_keys.cas) == "table" and watch_keys.cas or { watch_keys.cas }
-	        end
-	    else
-		    local tx_block = block
-		    block = function(client, ...)
+            if watch_keys.cas == true then
+                watch_keys = { }
+            else
+                watch_keys = type(watch_keys.cas) == "table" and watch_keys.cas or { watch_keys.cas }
+            end
+        else
+            local tx_block = block
+            block = function(client, ...)
                 client:multi()
                 return tx_block(client, ...) --can't wrap this in pcall because we're in a coroutine.
             end
