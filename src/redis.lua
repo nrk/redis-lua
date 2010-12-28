@@ -403,7 +403,6 @@ do
 
         local transaction_client = setmetatable({}, {__index=client})
         transaction_client.multi = function(...)
-            client:multi()
             coroutine.yield()
         end
 
@@ -437,6 +436,7 @@ do
                 end
             end
         })
+        client:multi()
         return coro
     end
 
@@ -444,15 +444,13 @@ do
         local queued_parsers, replies = {}, {}
         local coro = initialize_transaction(client, watch_keys, coroutine_block, queued_parsers)
 
-        -- do not fail if the coroutine has not been resumed (e.g. missing t:multi() with CAS)
-        if coroutine.status(coro) == 'dead' then
-            if #watch_keys > 0 then
-                client:unwatch()
-            end
-            return replies
+        local success, retval
+        if coroutine.status(coro) == 'suspended' then
+            success, retval = coroutine.resume(coro)
+        else
+            -- do not fail if the coroutine has not been resumed (missing t:multi() with CAS)
+            success, retval = true, 'empty transaction'
         end
-
-        local success, retval = coroutine.resume(coro)
         if #queued_parsers == 0 or not success then
             client:discard()
             assert(success, retval)
