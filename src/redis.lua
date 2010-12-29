@@ -487,8 +487,8 @@ do
 
         if not options.watch then
             options.watch = { unpack(options) }
-        elseif not type(options.watch) == 'table' then
-            options.watch = { tostring(options.watch) }
+        elseif not (type(options.watch) == 'table') then
+            options.watch = { options.watch }
         end
 
         if not options.cas then
