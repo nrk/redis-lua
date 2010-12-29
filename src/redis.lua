@@ -486,7 +486,14 @@ do
         end
 
         if not options.watch then
-            options.watch = { unpack(options) }
+            watch_keys = { }
+            for i, v in pairs(options) do
+                if tonumber(i) then
+                    table.insert(watch_keys, v)
+                    options[i] = nil
+                end
+            end
+            options.watch = watch_keys
         elseif not (type(options.watch) == 'table') then
             options.watch = { options.watch }
         end
