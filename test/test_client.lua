@@ -2171,5 +2171,55 @@ context("Redis commands", function()
             end)
             assert_table_values(replies, { true, 'hello', 'redis', false, "bazaar", '0' })
         end)
+
+        test("Abstraction options", function()
+            -- TODO: more in-depth tests (proxy calls to WATCH)
+            local opts, replies
+            local tx_empty = function(t) end
+            local tx_cas_empty = function(t) t:multi() end
+
+            replies = redis:transaction(tx_empty)
+            assert_table_values(replies, { })
+
+            assert_error(function()
+                redis:transaction(opts, tx_empty)
+            end)
+
+            opts = 'foo'
+            replies = redis:transaction(opts, tx_empty)
+            assert_table_values(replies, { })
+
+            opts = { 'foo', 'bar' }
+            replies = redis:transaction(opts, tx_empty)
+            assert_table_values(replies, { })
+
+            opts = { watch = 'foo' }
+            replies = redis:transaction(opts, tx_empty)
+            assert_table_values(replies, { })
+
+            opts = { watch = { 'foo', 'bar' } }
+            replies = redis:transaction(opts, tx_empty)
+            assert_table_values(replies, { })
+
+            opts = { cas = true }
+            replies = redis:transaction(opts, tx_cas_empty)
+            assert_table_values(replies, { })
+
+            opts = { 'foo', 'bar', cas = true }
+            replies = redis:transaction(opts, tx_cas_empty)
+            assert_table_values(replies, { })
+
+            opts = { 'foo', nil, 'bar', cas = true }
+            replies = redis:transaction(opts, tx_cas_empty)
+            assert_table_values(replies, { })
+
+            opts = { watch = { 'foo', 'bar' }, cas = true }
+            replies = redis:transaction(opts, tx_cas_empty)
+            assert_table_values(replies, { })
+
+            opts = { nil, cas = true }
+            replies = redis:transaction(opts, tx_cas_empty)
+            assert_table_values(replies, { })
+        end)
     end)
 end)
