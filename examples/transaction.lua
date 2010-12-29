@@ -18,7 +18,7 @@ end)
 
 -- check-and-set (CAS)
 redis:set('foo', 'bar')
-local replies = redis:transaction({ cas = 'foo' }, function(t)
+local replies = redis:transaction({ watch = 'foo', cas = true }, function(t)
     --executed after WATCH but before MULTI
     local val = t:get('foo')
     t:multi()

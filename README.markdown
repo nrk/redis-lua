@@ -55,9 +55,9 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 
 ### Leverage WATCH / MULTI / EXEC for check-and-set (CAS) operations (Redis > 2.2)
 
-    local replies = redis:transaction({ cas = "key_to_watch" }, function(t)
+    local replies = redis:transaction({ watch = "key_to_watch", cas = true }, function(t)
         local val = t:get("key_to_watch")
-        coroutine.yield()
+        t:multi()
         t:set("akey", val)
         t:set("anotherkey", val)
     end)
