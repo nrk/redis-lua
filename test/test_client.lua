@@ -2144,7 +2144,7 @@ context("Redis commands", function()
             end)
             assert_table_values(replies, { })
 
-            local replies = redis:transaction({ cas = 'foo' }, function(t)
+            local replies = redis:transaction({ watch = 'foo', cas = true }, function(t)
                 t:multi()
                 -- empty transaction
             end)
@@ -2152,7 +2152,7 @@ context("Redis commands", function()
 
             local redis2 = utils.create_client(settings)        
             local n = 5 
-            local replies = redis:transaction({ cas = 'foobarr' }, function(t)
+            local replies = redis:transaction({ watch = 'foobarr', cas = true }, function(t)
                 t:set('foobar', 'bazaar')
                 local val = t:get('foobar')
                 t:multi()
