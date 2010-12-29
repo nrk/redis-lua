@@ -395,9 +395,9 @@ do
     local function identity(...) return ... end
     local emptytable = {}
 
-    local function initialize_transaction(client, watch_keys, block, queued_parsers)
+    local function initialize_transaction(client, options, block, queued_parsers)
         local coro = coroutine.create(block)
-        for i, key in pairs(watch_keys) do
+        for _, key in pairs(options.watch) do
             client:watch(key)
         end
 
@@ -414,7 +414,7 @@ do
             for i, v in pairs(queued_parsers) do
                 queued_parsers[i]=nil
             end
-            coro = initialize_transaction(client, watch_keys, block, queued_parsers)
+            coro = initialize_transaction(client, options, block, queued_parsers)
             return reply
         end
         transaction_client.watch = function(...)
@@ -440,9 +440,10 @@ do
         return coro
     end
 
-    local function transaction(client, watch_keys, coroutine_block, retry)
+    local function transaction(client, options, coroutine_block, attempts)
         local queued_parsers, replies = {}, {}
-        local coro = initialize_transaction(client, watch_keys, coroutine_block, queued_parsers)
+        local retry = tonumber(attempts) or tonumber(options.retry) or 10
+        local coro = initialize_transaction(client, options, coroutine_block, queued_parsers)
 
         local success, retval
         if coroutine.status(coro) == 'suspended' then
@@ -463,7 +464,7 @@ do
                 error "MULTI/EXEC transaction aborted by the server"
             else
                 --we're not quite done yet
-                return transaction(client, watch_keys, coroutine_block, retry-1)
+                return transaction(client, options, coroutine_block, retry - 1)
             end
         end
         
@@ -475,22 +476,22 @@ do
     end
 
     client_prototype.transaction = function(client, arg1, arg2)
-        local watch_keys, block
+        local options, block
         if not arg2 then
-            watch_keys, block = {}, arg1
+            options, block = {}, arg1
         elseif arg1 then --and arg2, implicitly
-            watch_keys, block = type(arg1)=="table" and arg1 or { arg1 }, arg2
+            options, block = type(arg1)=="table" and arg1 or { arg1 }, arg2
         else
             error("Invalid parameters for redis transaction.")
         end
 
-        if watch_keys.cas then
-            if watch_keys.cas == true then
-                watch_keys = { }
-            else
-                watch_keys = type(watch_keys.cas) == "table" and watch_keys.cas or { watch_keys.cas }
-            end
-        else
+        if not options.watch then
+            options.watch = { unpack(options) }
+        elseif not type(options.watch) == 'table' then
+            options.watch = { tostring(options.watch) }
+        end
+
+        if not options.cas then
             local tx_block = block
             block = function(client, ...)
                 client:multi()
@@ -498,7 +499,7 @@ do
             end
         end
 
-        return nil or transaction(client, watch_keys, block, 10)
+        return nil or transaction(client, options, block)
     end
 end
 -- ############################################################################
