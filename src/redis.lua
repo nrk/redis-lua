@@ -352,12 +352,8 @@ client_prototype.pipeline = function(client, block)
     local pipeline = setmetatable({}, {
         __index = function(env, name)
             local cmd = client[name]
-            if cmd == nil then
-                if _G[name] then
-                    return _G[name]
-                else
-                    error('unknown redis command: ' .. name, 2)
-                end
+            if not cmd then
+                error('unknown redis command: ' .. name, 2)
             end
             return function(self, ...)
                 local reply = cmd(client, ...)
