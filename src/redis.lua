@@ -151,15 +151,10 @@ end
 -- ############################################################################
 
 function response.read(client)
-    local res    = client.network.read(client)
-    local prefix = res:sub(1, -#res)
-    local response_handler = protocol.prefixes[prefix]
-
-    if not response_handler then
-        error('unknown response prefix: ' .. prefix)
-    else
-        return response_handler(client, res)
-    end
+    local res = client.network.read(client)
+    local prefix  = res:sub(1, -#res)
+    local handler = assert(protocol.prefixes[prefix], 'unknown response prefix: '..prefix)
+    return handler(client, res)
 end
 
 function response.status(client, data)
@@ -187,14 +182,11 @@ end
 function response.bulk(client, data)
     local str = data:sub(2)
     local len = tonumber(str)
+    assert(len, 'cannot parse ' .. str .. ' as data length')
 
-    if not len then
-        error('cannot parse ' .. str .. ' as data length.')
-    else
-        if len == -1 then return nil end
-        local next_chunk = client.network.read(client, len + 2)
-        return next_chunk:sub(1, -3);
-    end
+    if len == -1 then return nil end
+    local next_chunk = client.network.read(client, len + 2)
+    return next_chunk:sub(1, -3);
 end
 
 function response.multibulk(client, data)
@@ -483,9 +475,7 @@ function connect(...)
         else
             local server = uri.parse(select(1, ...))
             if server.scheme then
-                if server.scheme ~= 'redis' then
-                    error('"' .. server.scheme .. '" is an invalid scheme')
-                end
+                assert(server.scheme == 'redis', '"'..server.scheme..'" is an invalid scheme')
                 host, port = server.host, server.port or defaults.port
                 if server.query then
                     for k,v in server.query:gmatch('([-_%w]+)=([-_%w]+)') do
@@ -505,14 +495,9 @@ function connect(...)
         host, port = unpack(args)
     end
 
-    if host == nil then
-        error('please specify the address of running redis instance')
-    end
-
+    assert(host, 'please specify the address of running redis instance')
     local client_socket = socket.connect(host, tonumber(port))
-    if not client_socket then
-        error('could not connect to ' .. host .. ':' .. port)
-    end
+    assert(client_socket, 'could not connect to ' .. host .. ':' .. port)
     client_socket:setoption('tcp-nodelay', tcp_nodelay)
 
     return create_client(client_prototype, client_socket, commands)
