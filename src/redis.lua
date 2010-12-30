@@ -379,7 +379,7 @@ client_prototype.pipeline = function(client, block)
         end
     end
 
-    return replies
+    return replies, #requests
 end
 
 do
