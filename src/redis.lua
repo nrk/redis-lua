@@ -455,7 +455,7 @@ do
         if #queued_parsers == 0 or not success then
             client:discard()
             assert(success, retval)
-            return replies
+            return replies, 0
         end
 
         local raw_replies = client:exec()
@@ -467,12 +467,12 @@ do
                 return transaction(client, options, coroutine_block, retry - 1)
             end
         end
-        
+
         for i, parser in pairs(queued_parsers) do
             table.insert(replies, i, parser(raw_replies[i]))
         end
 
-        return replies
+        return replies, #queued_parsers
     end
 
     client_prototype.transaction = function(client, arg1, arg2)
@@ -506,7 +506,7 @@ do
             end
         end
 
-        return nil or transaction(client, options, block)
+        return transaction(client, options, block)
     end
 end
 -- ############################################################################
