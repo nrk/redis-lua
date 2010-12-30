@@ -293,17 +293,25 @@ function command(command, opts)
     end
 end
 
-function define_command(name, opts)
+local define_command_impl = function(target, name, opts)
     local opts = opts or {}
-    commands[string.lower(name)] = custom(
+    target[string.lower(name)] = custom(
         opts.command or string.upper(name),
         opts.request or request.multibulk,
         opts.response or nil
     )
 end
 
+function define_command(name, opts)
+    define_command_impl(commands, name, opts)
+end
+
+local undefine_command_impl = function(target, name)
+    target[string.lower(name)] = nil
+end
+
 function undefine_command(name)
-    commands[string.lower(name)] = nil
+    undefine_command_impl(commands, name)
 end
 
 -- ############################################################################
@@ -316,16 +324,11 @@ client_prototype.raw_cmd = function(client, buffer)
 end
 
 client_prototype.define_command = function(client, name, opts)
-    local opts = opts or {}
-    client[string.lower(name)] = custom(
-        opts.command or string.upper(name),
-        opts.request or request.multibulk,
-        opts.response or nil
-    )
+    define_command_impl(client, name, opts)
 end
 
 client_prototype.undefine_command = function(client, name)
-    client[string.lower(name)] = nil
+    undefine_command_impl(client, name)
 end
 
 client_prototype.pipeline = function(client, block)
