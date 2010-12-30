@@ -2164,7 +2164,7 @@ context("Redis commands", function()
 
             local redis2 = utils.create_client(settings)        
             local n = 5
-            opts = { watch = 'foobarr', cas = true }
+            opts = { watch = 'foobarr', cas = true, retry = 5 }
             replies, processed = redis:transaction(opts, function(t)
                 t:set('foobar', 'bazaar')
                 local val = t:get('foobar')

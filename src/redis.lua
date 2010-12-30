@@ -442,7 +442,7 @@ do
 
     local function transaction(client, options, coroutine_block, attempts)
         local queued_parsers, replies = {}, {}
-        local retry = tonumber(attempts) or tonumber(options.retry) or 10
+        local retry = tonumber(attempts) or tonumber(options.retry) or 2
         local coro = initialize_transaction(client, options, coroutine_block, queued_parsers)
 
         local success, retval
