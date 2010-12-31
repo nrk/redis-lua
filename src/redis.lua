@@ -402,6 +402,9 @@ do
         end
 
         local transaction_client = setmetatable({}, {__index=client})
+        transaction_client.exec  = function(...)
+            error('cannot use EXEC inside a transaction block')
+        end
         transaction_client.multi = function(...)
             coroutine.yield()
         end
