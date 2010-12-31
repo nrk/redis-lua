@@ -397,8 +397,15 @@ do
 
     local function initialize_transaction(client, options, block, queued_parsers)
         local coro = coroutine.create(block)
-        for _, key in pairs(options.watch) do
-            client:watch(key)
+
+        if options.watch then
+            local watch_keys = {}
+            for _, key in pairs(options.watch) do
+                table.insert(watch_keys, key)
+            end
+            if #watch_keys > 0 then
+                client:watch(unpack(watch_keys))
+            end
         end
 
         local transaction_client = setmetatable({}, {__index=client})
