@@ -471,7 +471,7 @@ do
         local raw_replies = client:exec()
         if not raw_replies then
             if (retry or 0) <= 0 then
-                error "MULTI/EXEC transaction aborted by the server"
+                error("MULTI/EXEC transaction aborted by the server")
             else
                 --we're not quite done yet
                 return transaction(client, options, coroutine_block, retry - 1)
@@ -519,6 +519,7 @@ do
         return transaction(client, options, block)
     end
 end
+
 -- ############################################################################
 
 function connect(...)
