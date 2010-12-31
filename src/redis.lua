@@ -386,79 +386,133 @@ client_prototype.pipeline = function(client, block)
     return replies
 end
 
-client_prototype.transaction = function(client, ...)
-    local queued, parsers, replies = 0, {}, {}
-    local block, watch_keys = nil, nil
+do
+    local function identity(...) return ... end
+    local emptytable = {}
 
-    local args = {...}
-    if #args == 2 and type(args[1]) == 'table' then
-        watch_keys = args[1]
-        block = args[2]
-    else
-        block = args[1]
-    end
+    local function initialize_transaction(client, options, block, queued_parsers)
+        local coro = coroutine.create(block)
 
-    local transaction = setmetatable({
-        discard = function(...)
-            local reply = client:discard()
-            queued, parsers, replies = 0, {}, {}
-            return reply
-        end,
-        watch = function(...)
-            error('WATCH inside MULTI is not allowed')
-        end,
-
-        }, {
-
-        __index = function(env, name)
-            local cmd = client[name]
-            if cmd == nil then
-                if _G[name] then
-                    return _G[name]
-                else
-                    error('unknown redis command: ' .. name, 2)
-                end
+        if options.watch then
+            local watch_keys = {}
+            for _, key in pairs(options.watch) do
+                table.insert(watch_keys, key)
             end
-
-            return function(self, ...)
-                if queued == 0 then
-                    if client.watch and watch_keys then
-                        for _, key in pairs(watch_keys) do
-                            client:watch(key)
-                        end
-                    end
-                    client:multi()
-                end
-                local reply = cmd(client, ...)
-                if type(reply) ~= 'table' or reply.queued ~= true then
-                    error('a QUEUED reply was expected')
-                end
-                queued = queued + 1
-                table.insert(parsers, queued, reply.parser)
-                return reply
+            if #watch_keys > 0 then
+                client:watch(unpack(watch_keys))
             end
-        end,
-    })
-
-    local success, retval = pcall(block, transaction)
-    if not success then error(retval, 0) end
-    if queued == 0 then return replies end
-
-    local raw_replies = client:exec()
-    if raw_replies == nil then
-        error("MULTI/EXEC transaction aborted by the server")
-    end
-
-    for i = 1, queued do
-        local raw_reply, parser = raw_replies[i], parsers[i]
-        if parser then
-            table.insert(replies, i, parser(raw_reply))
-        else
-            table.insert(replies, i, raw_reply)
         end
+
+        local transaction_client = setmetatable({}, {__index=client})
+        transaction_client.exec  = function(...)
+            error('cannot use EXEC inside a transaction block')
+        end
+        transaction_client.multi = function(...)
+            coroutine.yield()
+        end
+
+        assert(coroutine.resume(coro, transaction_client))
+
+        transaction_client.multi = nil
+        transaction_client.discard = function(...)
+            local reply = client:discard()
+            for i, v in pairs(queued_parsers) do
+                queued_parsers[i]=nil
+            end
+            coro = initialize_transaction(client, options, block, queued_parsers)
+            return reply
+        end
+        transaction_client.watch = function(...)
+            error('WATCH inside MULTI is not allowed')
+        end
+        setmetatable(transaction_client, { __index = function(t, k)
+                local cmd = client[k]
+                if type(cmd) == "function" then
+                    local function queuey(self, ...)
+                        local reply = cmd(client, ...)
+                        assert((reply or emptytable).queued == true, 'a QUEUED reply was expected')
+                        table.insert(queued_parsers, reply.parser or identity)
+                        return reply
+                    end
+                    t[k]=queuey
+                    return queuey
+                else
+                    return cmd
+                end
+            end
+        })
+        client:multi()
+        return coro
     end
 
-    return replies
+    local function transaction(client, options, coroutine_block, attempts)
+        local queued_parsers, replies = {}, {}
+        local retry = tonumber(attempts) or tonumber(options.retry) or 2
+        local coro = initialize_transaction(client, options, coroutine_block, queued_parsers)
+
+        local success, retval
+        if coroutine.status(coro) == 'suspended' then
+            success, retval = coroutine.resume(coro)
+        else
+            -- do not fail if the coroutine has not been resumed (missing t:multi() with CAS)
+            success, retval = true, 'empty transaction'
+        end
+        if #queued_parsers == 0 or not success then
+            client:discard()
+            assert(success, retval)
+            return replies, 0
+        end
+
+        local raw_replies = client:exec()
+        if not raw_replies then
+            if (retry or 0) <= 0 then
+                error("MULTI/EXEC transaction aborted by the server")
+            else
+                --we're not quite done yet
+                return transaction(client, options, coroutine_block, retry - 1)
+            end
+        end
+
+        for i, parser in pairs(queued_parsers) do
+            table.insert(replies, i, parser(raw_replies[i]))
+        end
+
+        return replies, #queued_parsers
+    end
+
+    client_prototype.transaction = function(client, arg1, arg2)
+        local options, block
+        if not arg2 then
+            options, block = {}, arg1
+        elseif arg1 then --and arg2, implicitly
+            options, block = type(arg1)=="table" and arg1 or { arg1 }, arg2
+        else
+            error("Invalid parameters for redis transaction.")
+        end
+
+        if not options.watch then
+            watch_keys = { }
+            for i, v in pairs(options) do
+                if tonumber(i) then
+                    table.insert(watch_keys, v)
+                    options[i] = nil
+                end
+            end
+            options.watch = watch_keys
+        elseif not (type(options.watch) == 'table') then
+            options.watch = { options.watch }
+        end
+
+        if not options.cas then
+            local tx_block = block
+            block = function(client, ...)
+                client:multi()
+                return tx_block(client, ...) --can't wrap this in pcall because we're in a coroutine.
+            end
+        end
+
+        return transaction(client, options, block)
+    end
 end
 
 -- ############################################################################

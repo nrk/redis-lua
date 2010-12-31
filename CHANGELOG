@@ -1,4 +1,11 @@
-v2.0.0 (2010-xx-xx)
+v2.0.1 (2011-xx-xx)
+  * Vastly improved abstraction for Redis transactions (MULTI/EXEC) supporting 
+    check-and-set (CAS), automatic retries upon transaction failures and a few 
+    optional arguments for initialization (enable CAS support, list of keys to 
+    watch automatically and number of attempts upon failed transactions). The 
+    public interface is completely backwards compatible with previous versions.
+
+v2.0.0 (2010-11-27)
   * The client library is no longer compatible with Redis 1.0.
 
   * Support for long names of Redis commands has been dropped, the client now 

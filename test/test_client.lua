@@ -2042,7 +2042,6 @@ context("Redis commands", function()
             -- should raise an error when trying to EXEC without having previously issued MULTI
             assert_error(function() redis:exec() end)
         end)
-
         test("DISCARD (redis:discard)", function()
             if version.major < 2 then return end
 
@@ -2086,7 +2085,21 @@ context("Redis commands", function()
         test("MULTI / EXEC / DISCARD abstraction", function()
             if version.major < 2 then return end
 
-            local replies = redis:transaction(function(t)
+            local replies, processed
+
+            replies, processed = redis:transaction(function(t)
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            replies, processed = redis:transaction(function(t)
+                t:discard()
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            replies, processed = redis:transaction(function(t)
                 assert_response_queued(t:set('foo', 'bar'))
                 assert_true(t:discard())
                 assert_response_queued(t:ping())
@@ -2094,15 +2107,31 @@ context("Redis commands", function()
                 assert_response_queued(t:echo('redis'))
                 assert_response_queued(t:exists('foo'))
             end)
-
             assert_table_values(replies, { true, 'hello', 'redis', false })
+            assert_equal(processed, 4)
+
+            -- clean up transaction after client-side errors
+            assert_error(function()
+                redis:transaction(function(t)
+                    t:lpush('metavars', 'foo')
+                    error('whoops!')
+                    t:lpush('metavars', 'hoge')
+                end)
+            end)
+            assert_false(redis:exists('metavars'))
         end)
 
-        test("MULTI / EXEC / WATCH abstraction", function()
+        test("WATCH / MULTI / EXEC abstraction", function()
             if version.major >= 2 and version.minor < 1 then return end
 
             local redis2 = utils.create_client(settings)
             local watch_keys = { 'foo' }
+
+            local replies, processed = redis:transaction(watch_keys, function(t)
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
 
             assert_error(function()
                 redis:transaction(watch_keys, function(t)
@@ -2111,6 +2140,101 @@ context("Redis commands", function()
                     t:get('foo')
                 end)
             end)
+        end)
+
+        test("WATCH / MULTI / EXEC with check-and-set (CAS) abstraction", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            local opts, replies, processed
+
+            opts = { cas = 'foo' }
+            replies, processed = redis:transaction(opts, function(t)
+                -- empty transaction (with missing call to t:multi())
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            opts = { watch = 'foo', cas = true }
+            replies, processed = redis:transaction(opts, function(t)
+                t:multi()
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            local redis2 = utils.create_client(settings)        
+            local n = 5
+            opts = { watch = 'foobarr', cas = true, retry = 5 }
+            replies, processed = redis:transaction(opts, function(t)
+                t:set('foobar', 'bazaar')
+                local val = t:get('foobar')
+                t:multi()
+                assert_response_queued(t:set('discardable', 'bar'))
+                assert_true(t:discard())
+                assert_response_queued(t:ping())
+                assert_response_queued(t:echo('hello'))
+                assert_response_queued(t:echo('redis'))
+                if n>0 then
+                    n = n-1
+                    redis2:set("foobarr", n)
+                end
+                assert_response_queued(t:exists('foo'))
+                assert_response_queued(t:get('foobar'))
+                assert_response_queued(t:get('foobarr'))
+            end)
+            assert_table_values(replies, { true, 'hello', 'redis', false, "bazaar", '0' })
+            assert_equal(processed, 6)
+        end)
+
+        test("Abstraction options", function()
+            -- TODO: more in-depth tests (proxy calls to WATCH)
+            local opts, replies, processed
+            local tx_empty = function(t) end
+            local tx_cas_empty = function(t) t:multi() end
+
+            replies, processed = redis:transaction(tx_empty)
+            assert_table_values(replies, { })
+
+            assert_error(function()
+                redis:transaction(opts, tx_empty)
+            end)
+
+            opts = 'foo'
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            opts = { 'foo', 'bar' }
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_equal(processed, 0)
+
+            opts = { watch = 'foo' }
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_equal(processed, 0)
+
+            opts = { watch = { 'foo', 'bar' } }
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_equal(processed, 0)
+
+            opts = { cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { 'foo', 'bar', cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { 'foo', nil, 'bar', cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { watch = { 'foo', 'bar' }, cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { nil, cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
         end)
     end)
 end)
