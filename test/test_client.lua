@@ -2170,10 +2170,13 @@ context("Redis commands", function()
                 local val = t:get('foobar')
                 t:multi()
                 assert_response_queued(t:set('discardable', 'bar'))
+				assert_equal(t:commands_queued(), 1)
                 assert_true(t:discard())
                 assert_response_queued(t:ping())
+				assert_equal(t:commands_queued(), 1)
                 assert_response_queued(t:echo('hello'))
                 assert_response_queued(t:echo('redis'))
+				assert_equal(t:commands_queued(), 3)
                 if n>0 then
                     n = n-1
                     redis2:set("foobarr", n)

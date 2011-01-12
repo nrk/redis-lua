@@ -410,6 +410,9 @@ do
         transaction_client.multi = function(...)
             coroutine.yield()
         end
+        transaction_client.commands_queued = function()
+            return #queued_parsers
+        end
 
         assert(coroutine.resume(coro, transaction_client))
 
