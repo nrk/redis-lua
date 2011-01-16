@@ -5,6 +5,10 @@ v2.0.1 (2011-xx-xx)
     watch automatically and number of attempts upon failed transactions). The 
     public interface is completely backwards compatible with previous versions.
 
+  * Pipelines and transactions return the number of commands processed as the 
+    second return value, useful for iterating over a returned list of replies 
+    that contains holes (nil values).
+
 v2.0.0 (2010-11-27)
   * The client library is no longer compatible with Redis 1.0.
 
