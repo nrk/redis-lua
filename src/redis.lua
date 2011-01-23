@@ -102,7 +102,7 @@ local function zset_store_request(client, command, ...)
     request.multibulk(client, command, args)
 end
 
-local function hmset_filter_args(client, command, ...)
+local function mset_filter_args(client, command, ...)
     local args, arguments = {...}, {}
     if (#args == 1 and type(args[1]) == 'table') then
         for k,v in pairs(args[1]) do
@@ -211,11 +211,8 @@ function response.integer(client, data)
     local number = tonumber(res)
 
     if not number then
-        if res == protocol.null then
-            return nil
-        else
-            error('cannot parse ' .. res .. ' as numeric response.')
-        end
+        assert(res == protocol.null, 'cannot parse ' .. res .. ' as numeric response.')
+        return nil
     end
 
     return number
@@ -583,9 +580,9 @@ commands = {
     set        = command('SET'),
     setnx      = command('SETNX', { response = toboolean }),
     setex      = command('SETEX'),          -- >= 2.0
-    mset       = command('MSET', { request = hmset_filter_args }),
+    mset       = command('MSET', { request = mset_filter_args }),
     msetnx     = command('MSETNX', {
-        request = hmset_filter_args,
+        request  = mset_filter_args,
         response = toboolean
     }),
     get        = command('GET'),
