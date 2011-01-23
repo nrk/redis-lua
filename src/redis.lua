@@ -115,6 +115,21 @@ local function mset_filter_args(client, command, ...)
     request.multibulk(client, command, arguments)
 end
 
+local function hash_multi_request_builder(builder_callback)
+    return function(client, command, ...)
+        local args, arguments = {...}, { }
+        if #args == 2 then
+            table.insert(arguments, args[1])
+            for k, v in pairs(args[2]) do
+                builder_callback(arguments, k, v)
+            end
+        else
+            arguments = args
+        end
+        request.multibulk(client, command, arguments)
+    end
+end
+
 local function load_methods(proto, methods)
     local redis = setmetatable ({}, getmetatable(proto))
     for i, v in pairs(proto) do redis[i] = v end
@@ -703,35 +718,17 @@ commands = {
     hset             = command('HSET', { response = toboolean }),
     hsetnx           = command('HSETNX', { response = toboolean }),
     hmset            = command('HMSET', {
-        request = function(client, command, ...)
-            local args, arguments = {...}, { }
-            if #args == 2 then
-                table.insert(arguments, args[1])
-                for k, v in pairs(args[2]) do
-                    table.insert(arguments, k)
-                    table.insert(arguments, v)
-                end
-            else
-                arguments = args
-            end
-            request.multibulk(client, command, arguments)
-        end,
+        request  = hash_multi_request_builder(function(args, k, v)
+            table.insert(args, k)
+            table.insert(args, v)
+        end),
     }),
     hincrby          = command('HINCRBY'),
     hget             = command('HGET'),
     hmget            = command('HMGET', {
-        request = function(client, command, ...)
-            local args, arguments = {...}, { }
-            if #args == 2 then
-                table.insert(arguments, args[1])
-                for _, v in ipairs(args[2]) do
-                    table.insert(arguments, v)
-                end
-            else
-                arguments = args
-            end
-            request.multibulk(client, command, arguments)
-        end,
+        request  = hash_multi_request_builder(function(args, k, v)
+            table.insert(args, v)
+        end),
     }),
     hdel             = command('HDEL', { response = toboolean }),
     hexists          = command('HEXISTS', { response = toboolean }),
