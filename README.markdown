@@ -113,7 +113,7 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 - [Issue tracker](http://github.com/nrk/redis-lua/issues)
 
 ### Related ###
-- [Redis](http://code.google.com/p/redis/)
+- [Redis](http://redis.io/)
 - [Git](http://git-scm.com/)
 
 ## Authors ##
@@ -122,7 +122,7 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 
 ### Contributors ###
 
-[Leo Ponomarev](https://github.com/slact/)
+[Leo Ponomarev](http://github.com/slact/)
 
 ## License ##
 
