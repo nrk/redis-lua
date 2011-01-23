@@ -783,8 +783,15 @@ commands = {
                 end
 
                 if params.get then
-                    table.insert(query, 'GET')
-                    table.insert(query, params.get)
+                    if (type(params.get) == 'table') then
+                        for _, getarg in pairs(params.get) do
+                            table.insert(query, 'GET')
+                            table.insert(query, getarg)
+                        end
+                    else
+                        table.insert(query, 'GET')
+                        table.insert(query, params.get)
+                    end
                 end
 
                 if params.sort then

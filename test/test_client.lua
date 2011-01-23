@@ -1934,6 +1934,21 @@ context("Redis commands", function()
             assert_table_values(redis:sort(list02, { alpha = true }),  { "1","10","2","20","3","30" })
         end)
 
+        test("SORT (redis:sort) with parameter GET", function()
+            redis:rpush('uids', 1003)
+            redis:rpush('uids', 1001)
+            redis:rpush('uids', 1002)
+            redis:rpush('uids', 1000)
+            local sortget = {
+                ['uid:1000'] = 'foo',  ['uid:1001'] = 'bar',
+                ['uid:1002'] = 'hoge', ['uid:1003'] = 'piyo',
+            }
+            redis:mset(sortget)
+
+            assert_table_values(redis:sort('uids', { get = 'uid:*' }), table.values(sortget))
+            assert_table_values(redis:sort('uids', { get = { 'uid:*' } }), table.values(sortget))
+        end)
+
         test("SORT (redis:sort) with multiple parameters", function()
             assert_table_values(redis:sort(list02, {
                 alpha = false,

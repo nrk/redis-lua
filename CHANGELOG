@@ -9,6 +9,10 @@ v2.0.1 (2011-xx-xx)
     second return value, useful for iterating over a returned list of replies 
     that contains holes (nil values).
 
+  * Since SORT can accept multiple GET parameters, redis:sort() has been 
+    modified accordingly to accept either a string or a table for the 'get' 
+    parameter.
+
 v2.0.0 (2010-11-27)
   * The client library is no longer compatible with Redis 1.0.
 
