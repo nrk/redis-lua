@@ -6,7 +6,7 @@ local uri    = require('socket.url')
 local commands = {}
 local network, request, response = {}, {}, {}
 
-local defaults = { host = '127.0.0.1', port = 6379, tcp_nodelay = false }
+local defaults = { host = '127.0.0.1', port = 6379, tcp_nodelay = true }
 local protocol = {
     newline = '\r\n',
     ok      = 'OK',
