@@ -259,7 +259,7 @@ context("Client features", function()
     end)
 
     test("Pipelining commands", function()
-        local replies = redis:pipeline(function(p)
+        local replies, count = redis:pipeline(function(p)
             p:ping()
             p:exists('counter')
             p:incrby('counter', 10)
@@ -270,9 +270,11 @@ context("Client features", function()
             p:del('foo', 'hoge')
             p:mget('does_not_exist', 'counter')
             p:info()
+            p:get('nilkey')
         end)
 
         assert_type(replies, 'table')
+        assert_equal(count, 11)
         assert_equal(#replies, 10)
         assert_true(replies[1])
         assert_type(replies[9], 'table')
@@ -496,6 +498,122 @@ context("Redis commands", function()
                 redis:substr('metavars', 0, 3)
             end)
         end)
+
+        test("STRLEN (redis:strlen)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            redis:set('var', 'foobar')
+            assert_equal(redis:strlen('var'), 6)
+            assert_equal(redis:append('var', '___'), 9)
+            assert_equal(redis:strlen('var'), 9)
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                qredis:strlen('metavars')
+            end)
+        end)
+
+        test("SETRANGE (redis:setrange)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            assert_equal(redis:setrange('var', 0, 'foobar'), 6)
+            assert_equal(redis:get('var'), 'foobar')
+            assert_equal(redis:setrange('var', 3, 'foo'), 6)
+            assert_equal(redis:get('var'), 'foofoo')
+            assert_equal(redis:setrange('var', 10, 'barbar'), 16)
+            assert_equal(redis:get('var'), "foofoo\0\0\0\0barbar")
+
+            assert_error(function()
+                redis:setrange('var', -1, 'bogus')
+            end)
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                redis:setrange('metavars', 0, 'hoge')
+            end)
+        end)
+
+        test("GETRANGE (redis:getrange)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            redis:set('var', 'foobar')
+            assert_equal(redis:getrange('var', 0, 2), 'foo')
+            assert_equal(redis:getrange('var', 3, 5), 'bar')
+            assert_equal(redis:getrange('var', -3, -1), 'bar')
+
+            assert_nil(redis:getrange('var', 5, 0))
+
+            redis:set('numeric', 123456789)
+            assert_equal(redis:getrange('numeric', 0, 4), '12345')
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                redis:getrange('metavars', 0, 3)
+            end)
+        end)
+
+        test("SETBIT (redis:setbit)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            assert_equal(redis:setbit('binary', 31, 1), 0)
+            assert_equal(redis:setbit('binary', 0, 1), 0)
+            assert_equal(redis:strlen('binary'), 4)
+            assert_equal(redis:get('binary'), "\128\0\0\1")
+
+            assert_equal(redis:setbit('binary', 0, 0), 1)
+            assert_equal(redis:setbit('binary', 0, 0), 0)
+            assert_equal(redis:get('binary'), "\0\0\0\1")
+
+            assert_error(function()
+              redis:setbit('binary', -1, 1)
+            end)
+
+            assert_error(function()
+                redis:setbit('binary', 'invalid', 1)
+            end)
+
+            assert_error(function()
+                redis:setbit('binary', 'invalid', 1)
+            end)
+
+            assert_error(function()
+                redis:setbit('binary', 15, 255)
+            end)
+
+            assert_error(function()
+                redis:setbit('binary', 15, 'invalid')
+            end)
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                redis:setbit('metavars', 0, 1)
+            end)
+        end)
+
+
+        test("GETBIT (redis:getbit)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            redis:set('binary', "\128\0\0\1")
+
+            assert_equal(redis:getbit('binary', 0), 1)
+            assert_equal(redis:getbit('binary', 15), 0)
+            assert_equal(redis:getbit('binary', 31), 1)
+            assert_equal(redis:getbit('binary', 63), 0)
+
+            assert_error(function()
+              redis:getbit('binary', -1)
+            end)
+
+            assert_error(function()
+              redis:getbit('binary', 'invalid')
+            end)
+
+            assert_error(function()
+                redis:rpush('metavars', 'foo')
+                redis:getbit('metavars', 0)
+            end)
+        end)
     end)
 
     context("Commands operating on the key space", function()
@@ -608,6 +726,20 @@ context("Redis commands", function()
             redis:mset(shared.kvs_table())
             assert_greater_than(redis:dbsize(), 0)
         end)
+
+        test("PERSIST (redis:persist)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            redis:set('foo', 'bar')
+
+            assert_true(redis:expire('foo', 1))
+            assert_equal(redis:ttl('foo'), 1)
+            assert_true(redis:persist('foo'))
+            assert_equal(redis:ttl('foo'), -1)
+
+            assert_false(redis:persist('foo'))
+            assert_false(redis:persist('foobar'))
+        end)
     end)
 
     context("Commands operating on lists", function()
@@ -625,6 +757,21 @@ context("Redis commands", function()
             end)
         end)
 
+        test("RPUSHX (redis:rpushx)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            assert_equal(redis:rpushx('numbers', 1), 0)
+            assert_equal(redis:rpush('numbers', 2), 1)
+            assert_equal(redis:rpushx('numbers', 3), 2)
+            assert_equal(redis:llen('numbers'), 2)
+            assert_table_values(redis:lrange('numbers', 0, -1), { '2', '3' })
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:rpushx('foo', 'baz')
+            end)
+        end)
+
         test("LPUSH (redis:lpush)", function()
             if version.major < 2 then
                 assert_true(redis:lpush('metavars', 'foo'))
@@ -636,6 +783,22 @@ context("Redis commands", function()
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:lpush('foo', 'baz')
+            end)
+        end)
+
+        test("LPUSHX (redis:lpushx)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            assert_equal(redis:lpushx('numbers', 1), 0)
+            assert_equal(redis:lpush('numbers', 2), 1)
+            assert_equal(redis:lpushx('numbers', 3), 2)
+
+            assert_equal(redis:llen('numbers'), 2)
+            assert_table_values(redis:lrange('numbers', 0, -1), { '3', '2' })
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:lpushx('foo', 'baz')
             end)
         end)
 
@@ -834,6 +997,29 @@ context("Redis commands", function()
         test("BRPOP (redis:brpop)", function()
             if version.major < 2 then return end
             -- TODO: implement tests
+        end)
+
+        test("BRPOPLPUSH (redis:brpoplpush)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+            -- TODO: implement tests
+        end)
+
+        test("LINSERT (redis:linsert)", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            utils.rpush_return(redis, 'numbers', shared.numbers(), true)
+
+            assert_equal(redis:linsert('numbers', 'before', 0, -2), 11)
+            assert_equal(redis:linsert('numbers', 'after', -2, -1), 12)
+            assert_table_values(redis:lrange('numbers', 0, 3), { '-2', '-1', '0', '1' });
+
+            assert_equal(redis:linsert('numbers', 'before', 100, 200), -1)
+            assert_equal(redis:linsert('numbers', 'after', 100, 50), -1)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:linsert('foo', 0, 0)
+            end)
         end)
     end)
 
@@ -1176,6 +1362,11 @@ context("Redis commands", function()
                   { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
             )
 
+            assert_table_values(
+                redis:zrange('zset', 0, 2, { withscores = true }),
+                  { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
+            )
+
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:zrange('foo', 0, -1)
@@ -1198,6 +1389,11 @@ context("Redis commands", function()
                 { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
             )
 
+            assert_table_values(
+                redis:zrevrange('zset', 0, 2, { withscores = true }),
+                { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
+            )
+
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:zrevrange('foo', 0, -1)
@@ -1212,10 +1408,34 @@ context("Redis commands", function()
             assert_table_values(redis:zrangebyscore('zset', 20, 20), { 'd', 'e' })
             assert_empty(redis:zrangebyscore('zset', 30, 0))
 
-            -- TODO: should return a kind of tuple when using 'withscores'
             assert_table_values(
                 redis:zrangebyscore('zset', 10, 20, 'withscores'),
-                { 'c', '10', 'd', '20', 'e', '20' }
+                { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
+            )
+
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, { withscores = true }),
+                { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
+            )
+
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, { limit = { 1, 2 } }),
+                { 'd', 'e' }
+            )
+
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, {
+                    limit = { offset = 1, count = 2 }
+                }),
+                { 'd', 'e' }
+            )
+
+            assert_table_values(
+                redis:zrangebyscore('zset', 10, 20, {
+                    limit = { offset = 1, count = 2 },
+                    withscores = true
+                }),
+                { { 'd', '20' }, { 'e', '20' } }
             )
 
             assert_error(function()
@@ -1223,6 +1443,46 @@ context("Redis commands", function()
                 redis:zrangebyscore('foo', 0, -1)
             end)
         end)
+
+        test("ZREVRANGEBYSCORE (redis:zrevrangebyscore)", function()
+            local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
+
+            assert_table_values(redis:zrevrangebyscore('zset', -10, -10), { 'a' })
+            assert_table_values(redis:zrevrangebyscore('zset', 0, -10), { 'b', 'a' })
+            assert_table_values(redis:zrevrangebyscore('zset', 20, 20), { 'e', 'd' })
+            assert_table_values(redis:zrevrangebyscore('zset', 30, 0), { 'f', 'e', 'd', 'c', 'b' })
+
+            assert_table_values(
+                redis:zrevrangebyscore('zset', 20, 10, 'withscores'),
+                { { 'e', '20' }, { 'd', '20' }, { 'c', '10' } }
+            )
+
+            assert_table_values(
+                redis:zrevrangebyscore('zset', 20, 10, { limit = { 1, 2 } }),
+                { 'd', 'c' }
+            )
+
+            assert_table_values(
+                redis:zrevrangebyscore('zset', 20, 10, {
+                    limit = { offset = 1, count = 2 }
+                }),
+                { 'd', 'c' }
+            )
+
+            assert_table_values(
+                redis:zrevrangebyscore('zset', 20, 10, {
+                    limit = { offset = 1, count = 2 },
+                    withscores = true
+                }),
+                { { 'd', '20' }, { 'c', '10' } }
+            )
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:zrevrangebyscore('foo', 0, -1)
+            end)
+        end)
+
 
         test("ZUNIONSTORE (redis:zunionstore)", function()
             if version.major < 2 then return end
@@ -1674,6 +1934,21 @@ context("Redis commands", function()
             assert_table_values(redis:sort(list02, { alpha = true }),  { "1","10","2","20","3","30" })
         end)
 
+        test("SORT (redis:sort) with parameter GET", function()
+            redis:rpush('uids', 1003)
+            redis:rpush('uids', 1001)
+            redis:rpush('uids', 1002)
+            redis:rpush('uids', 1000)
+            local sortget = {
+                ['uid:1000'] = 'foo',  ['uid:1001'] = 'bar',
+                ['uid:1002'] = 'hoge', ['uid:1003'] = 'piyo',
+            }
+            redis:mset(sortget)
+
+            assert_table_values(redis:sort('uids', { get = 'uid:*' }), table.values(sortget))
+            assert_table_values(redis:sort('uids', { get = { 'uid:*' } }), table.values(sortget))
+        end)
+
         test("SORT (redis:sort) with multiple parameters", function()
             assert_table_values(redis:sort(list02, {
                 alpha = false,
@@ -1784,7 +2059,6 @@ context("Redis commands", function()
             -- should raise an error when trying to EXEC without having previously issued MULTI
             assert_error(function() redis:exec() end)
         end)
-
         test("DISCARD (redis:discard)", function()
             if version.major < 2 then return end
 
@@ -1828,7 +2102,21 @@ context("Redis commands", function()
         test("MULTI / EXEC / DISCARD abstraction", function()
             if version.major < 2 then return end
 
-            local replies = redis:transaction(function(t)
+            local replies, processed
+
+            replies, processed = redis:transaction(function(t)
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            replies, processed = redis:transaction(function(t)
+                t:discard()
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            replies, processed = redis:transaction(function(t)
                 assert_response_queued(t:set('foo', 'bar'))
                 assert_true(t:discard())
                 assert_response_queued(t:ping())
@@ -1836,15 +2124,31 @@ context("Redis commands", function()
                 assert_response_queued(t:echo('redis'))
                 assert_response_queued(t:exists('foo'))
             end)
-
             assert_table_values(replies, { true, 'hello', 'redis', false })
+            assert_equal(processed, 4)
+
+            -- clean up transaction after client-side errors
+            assert_error(function()
+                redis:transaction(function(t)
+                    t:lpush('metavars', 'foo')
+                    error('whoops!')
+                    t:lpush('metavars', 'hoge')
+                end)
+            end)
+            assert_false(redis:exists('metavars'))
         end)
 
-        test("MULTI / EXEC / WATCH abstraction", function()
+        test("WATCH / MULTI / EXEC abstraction", function()
             if version.major >= 2 and version.minor < 1 then return end
 
             local redis2 = utils.create_client(settings)
             local watch_keys = { 'foo' }
+
+            local replies, processed = redis:transaction(watch_keys, function(t)
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
 
             assert_error(function()
                 redis:transaction(watch_keys, function(t)
@@ -1853,6 +2157,104 @@ context("Redis commands", function()
                     t:get('foo')
                 end)
             end)
+        end)
+
+        test("WATCH / MULTI / EXEC with check-and-set (CAS) abstraction", function()
+            if version.major >= 2 and version.minor < 1 then return end
+
+            local opts, replies, processed
+
+            opts = { cas = 'foo' }
+            replies, processed = redis:transaction(opts, function(t)
+                -- empty transaction (with missing call to t:multi())
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            opts = { watch = 'foo', cas = true }
+            replies, processed = redis:transaction(opts, function(t)
+                t:multi()
+                -- empty transaction
+            end)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            local redis2 = utils.create_client(settings)        
+            local n = 5
+            opts = { watch = 'foobarr', cas = true, retry = 5 }
+            replies, processed = redis:transaction(opts, function(t)
+                t:set('foobar', 'bazaar')
+                local val = t:get('foobar')
+                t:multi()
+                assert_response_queued(t:set('discardable', 'bar'))
+                assert_equal(t:commands_queued(), 1)
+                assert_true(t:discard())
+                assert_response_queued(t:ping())
+                assert_equal(t:commands_queued(), 1)
+                assert_response_queued(t:echo('hello'))
+                assert_response_queued(t:echo('redis'))
+                assert_equal(t:commands_queued(), 3)
+                if n>0 then
+                    n = n-1
+                    redis2:set("foobarr", n)
+                end
+                assert_response_queued(t:exists('foo'))
+                assert_response_queued(t:get('foobar'))
+                assert_response_queued(t:get('foobarr'))
+            end)
+            assert_table_values(replies, { true, 'hello', 'redis', false, "bazaar", '0' })
+            assert_equal(processed, 6)
+        end)
+
+        test("Abstraction options", function()
+            -- TODO: more in-depth tests (proxy calls to WATCH)
+            local opts, replies, processed
+            local tx_empty = function(t) end
+            local tx_cas_empty = function(t) t:multi() end
+
+            replies, processed = redis:transaction(tx_empty)
+            assert_table_values(replies, { })
+
+            assert_error(function()
+                redis:transaction(opts, tx_empty)
+            end)
+
+            opts = 'foo'
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_table_values(replies, { })
+            assert_equal(processed, 0)
+
+            opts = { 'foo', 'bar' }
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_equal(processed, 0)
+
+            opts = { watch = 'foo' }
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_equal(processed, 0)
+
+            opts = { watch = { 'foo', 'bar' } }
+            replies, processed = redis:transaction(opts, tx_empty)
+            assert_equal(processed, 0)
+
+            opts = { cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { 'foo', 'bar', cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { 'foo', nil, 'bar', cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { watch = { 'foo', 'bar' }, cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
+
+            opts = { nil, cas = true }
+            replies, processed = redis:transaction(opts, tx_cas_empty)
+            assert_equal(processed, 0)
         end)
     end)
 end)

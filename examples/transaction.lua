@@ -16,6 +16,17 @@ local replies = redis:transaction(function(t)
     t:decrby('counter', 15)
 end)
 
+-- check-and-set (CAS)
+redis:set('foo', 'bar')
+local replies = redis:transaction({ watch = 'foo', cas = true }, function(t)
+    --executed after WATCH but before MULTI
+    local val = t:get('foo')
+    t:multi()
+    --executing during MULTI block
+    t:set('foo', 'foo' .. val)
+    t:get('foo')
+end)
+
 for _, reply in pairs(replies) do
     print('*', reply)
 end

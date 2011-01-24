@@ -6,7 +6,7 @@ local uri    = require('socket.url')
 local commands = {}
 local network, request, response = {}, {}, {}
 
-local defaults = { host = '127.0.0.1', port = 6379, tcp_nodelay = false }
+local defaults = { host = '127.0.0.1', port = 6379, tcp_nodelay = true }
 local protocol = {
     newline = '\r\n',
     ok      = 'OK',
@@ -34,9 +34,43 @@ local function fire_and_forget(client, command)
     return false
 end
 
-local function zset_range_parse(reply, command, ...)
+local function zset_range_request(client, command, ...)
+    local args, opts = {...}, { }
+
+    if #args >= 1 and type(args[#args]) == 'table' then
+        local options = table.remove(args, #args)
+        if options.withscores then
+            table.insert(opts, 'WITHSCORES')
+        end
+    end
+
+    for _, v in pairs(opts) do table.insert(args, v) end
+    request.multibulk(client, command, args)
+end
+
+local function zset_range_byscore_request(client, command, ...)
+    local args, opts = {...}, { }
+
+    if #args >= 1 and type(args[#args]) == 'table' then
+        local options = table.remove(args, #args)
+        if options.limit then
+            table.insert(opts, 'LIMIT')
+            table.insert(opts, options.limit.offset or options.limit[1])
+            table.insert(opts, options.limit.count or options.limit[2])
+        end
+        if options.withscores then
+            table.insert(opts, 'WITHSCORES')
+        end
+    end
+
+    for _, v in pairs(opts) do table.insert(args, v) end
+    request.multibulk(client, command, args)
+end
+
+local function zset_range_reply(reply, command, ...)
     local args = {...}
-    if #args == 4 and string.lower(args[4]) == 'withscores' then
+    local opts = args[4]
+    if opts and (opts.withscores or string.lower(tostring(opts)) == 'withscores') then
         local new_reply = { }
         for i = 1, #reply, 2 do
             table.insert(new_reply, { reply[i], reply[i + 1] })
@@ -68,7 +102,7 @@ local function zset_store_request(client, command, ...)
     request.multibulk(client, command, args)
 end
 
-local function hmset_filter_args(client, command, ...)
+local function mset_filter_args(client, command, ...)
     local args, arguments = {...}, {}
     if (#args == 1 and type(args[1]) == 'table') then
         for k,v in pairs(args[1]) do
@@ -79,6 +113,21 @@ local function hmset_filter_args(client, command, ...)
         arguments = args
     end
     request.multibulk(client, command, arguments)
+end
+
+local function hash_multi_request_builder(builder_callback)
+    return function(client, command, ...)
+        local args, arguments = {...}, { }
+        if #args == 2 then
+            table.insert(arguments, args[1])
+            for k, v in pairs(args[2]) do
+                builder_callback(arguments, k, v)
+            end
+        else
+            arguments = args
+        end
+        request.multibulk(client, command, arguments)
+    end
 end
 
 local function load_methods(proto, methods)
@@ -117,15 +166,10 @@ end
 -- ############################################################################
 
 function response.read(client)
-    local res    = client.network.read(client)
-    local prefix = res:sub(1, -#res)
-    local response_handler = protocol.prefixes[prefix]
-
-    if not response_handler then
-        error('unknown response prefix: ' .. prefix)
-    else
-        return response_handler(client, res)
-    end
+    local res = client.network.read(client)
+    local prefix  = res:sub(1, -#res)
+    local handler = assert(protocol.prefixes[prefix], 'unknown response prefix: '..prefix)
+    return handler(client, res)
 end
 
 function response.status(client, data)
@@ -153,14 +197,11 @@ end
 function response.bulk(client, data)
     local str = data:sub(2)
     local len = tonumber(str)
+    assert(len, 'cannot parse ' .. str .. ' as data length')
 
-    if not len then
-        error('cannot parse ' .. str .. ' as data length.')
-    else
-        if len == -1 then return nil end
-        local next_chunk = client.network.read(client, len + 2)
-        return next_chunk:sub(1, -3);
-    end
+    if len == -1 then return nil end
+    local next_chunk = client.network.read(client, len + 2)
+    return next_chunk:sub(1, -3);
 end
 
 function response.multibulk(client, data)
@@ -185,11 +226,8 @@ function response.integer(client, data)
     local number = tonumber(res)
 
     if not number then
-        if res == protocol.null then
-            return nil
-        else
-            error('cannot parse ' .. res .. ' as numeric response.')
-        end
+        assert(res == protocol.null, 'cannot parse ' .. res .. ' as numeric response.')
+        return nil
     end
 
     return number
@@ -267,17 +305,25 @@ function command(command, opts)
     end
 end
 
-function define_command(name, opts)
+local define_command_impl = function(target, name, opts)
     local opts = opts or {}
-    commands[string.lower(name)] = custom(
+    target[string.lower(name)] = custom(
         opts.command or string.upper(name),
         opts.request or request.multibulk,
         opts.response or nil
     )
 end
 
+function define_command(name, opts)
+    define_command_impl(commands, name, opts)
+end
+
+local undefine_command_impl = function(target, name)
+    target[string.lower(name)] = nil
+end
+
 function undefine_command(name)
-    commands[string.lower(name)] = nil
+    undefine_command_impl(commands, name)
 end
 
 -- ############################################################################
@@ -290,16 +336,11 @@ client_prototype.raw_cmd = function(client, buffer)
 end
 
 client_prototype.define_command = function(client, name, opts)
-    local opts = opts or {}
-    client[string.lower(name)] = custom(
-        opts.command or string.upper(name),
-        opts.request or request.multibulk,
-        opts.response or nil
-    )
+    define_command_impl(client, name, opts)
 end
 
 client_prototype.undefine_command = function(client, name)
-    client[string.lower(name)] = nil
+    undefine_command_impl(client, name)
 end
 
 client_prototype.pipeline = function(client, block)
@@ -323,12 +364,8 @@ client_prototype.pipeline = function(client, block)
     local pipeline = setmetatable({}, {
         __index = function(env, name)
             local cmd = client[name]
-            if cmd == nil then
-                if _G[name] then
-                    return _G[name]
-                else
-                    error('unknown redis command: ' .. name, 2)
-                end
+            if not cmd then
+                error('unknown redis command: ' .. name, 2)
             end
             return function(self, ...)
                 local reply = cmd(client, ...)
@@ -354,82 +391,139 @@ client_prototype.pipeline = function(client, block)
         end
     end
 
-    return replies
+    return replies, #requests
 end
 
-client_prototype.transaction = function(client, ...)
-    local queued, parsers, replies = 0, {}, {}
-    local block, watch_keys = nil, nil
+do
+    local function identity(...) return ... end
+    local emptytable = {}
 
-    local args = {...}
-    if #args == 2 and type(args[1]) == 'table' then
-        watch_keys = args[1]
-        block = args[2]
-    else
-        block = args[1]
-    end
+    local function initialize_transaction(client, options, block, queued_parsers)
+        local coro = coroutine.create(block)
 
-    local transaction = setmetatable({
-        discard = function(...)
-            local reply = client:discard()
-            queued, parsers, replies = 0, {}, {}
-            return reply
-        end,
-        watch = function(...)
-            error('WATCH inside MULTI is not allowed')
-        end,
-
-        }, {
-
-        __index = function(env, name)
-            local cmd = client[name]
-            if cmd == nil then
-                if _G[name] then
-                    return _G[name]
-                else
-                    error('unknown redis command: ' .. name, 2)
-                end
+        if options.watch then
+            local watch_keys = {}
+            for _, key in pairs(options.watch) do
+                table.insert(watch_keys, key)
             end
-
-            return function(self, ...)
-                if queued == 0 then
-                    if client.watch and watch_keys then
-                        for _, key in pairs(watch_keys) do
-                            client:watch(key)
-                        end
-                    end
-                    client:multi()
-                end
-                local reply = cmd(client, ...)
-                if type(reply) ~= 'table' or reply.queued ~= true then
-                    error('a QUEUED reply was expected')
-                end
-                queued = queued + 1
-                table.insert(parsers, queued, reply.parser)
-                return reply
+            if #watch_keys > 0 then
+                client:watch(unpack(watch_keys))
             end
-        end,
-    })
-
-    local success, retval = pcall(block, transaction)
-    if not success then error(retval, 0) end
-    if queued == 0 then return replies end
-
-    local raw_replies = client:exec()
-    if raw_replies == nil then
-        error("MULTI/EXEC transaction aborted by the server")
-    end
-
-    for i = 1, queued do
-        local raw_reply, parser = raw_replies[i], parsers[i]
-        if parser then
-            table.insert(replies, i, parser(raw_reply))
-        else
-            table.insert(replies, i, raw_reply)
         end
+
+        local transaction_client = setmetatable({}, {__index=client})
+        transaction_client.exec  = function(...)
+            error('cannot use EXEC inside a transaction block')
+        end
+        transaction_client.multi = function(...)
+            coroutine.yield()
+        end
+        transaction_client.commands_queued = function()
+            return #queued_parsers
+        end
+
+        assert(coroutine.resume(coro, transaction_client))
+
+        transaction_client.multi = nil
+        transaction_client.discard = function(...)
+            local reply = client:discard()
+            for i, v in pairs(queued_parsers) do
+                queued_parsers[i]=nil
+            end
+            coro = initialize_transaction(client, options, block, queued_parsers)
+            return reply
+        end
+        transaction_client.watch = function(...)
+            error('WATCH inside MULTI is not allowed')
+        end
+        setmetatable(transaction_client, { __index = function(t, k)
+                local cmd = client[k]
+                if type(cmd) == "function" then
+                    local function queuey(self, ...)
+                        local reply = cmd(client, ...)
+                        assert((reply or emptytable).queued == true, 'a QUEUED reply was expected')
+                        table.insert(queued_parsers, reply.parser or identity)
+                        return reply
+                    end
+                    t[k]=queuey
+                    return queuey
+                else
+                    return cmd
+                end
+            end
+        })
+        client:multi()
+        return coro
     end
 
-    return replies
+    local function transaction(client, options, coroutine_block, attempts)
+        local queued_parsers, replies = {}, {}
+        local retry = tonumber(attempts) or tonumber(options.retry) or 2
+        local coro = initialize_transaction(client, options, coroutine_block, queued_parsers)
+
+        local success, retval
+        if coroutine.status(coro) == 'suspended' then
+            success, retval = coroutine.resume(coro)
+        else
+            -- do not fail if the coroutine has not been resumed (missing t:multi() with CAS)
+            success, retval = true, 'empty transaction'
+        end
+        if #queued_parsers == 0 or not success then
+            client:discard()
+            assert(success, retval)
+            return replies, 0
+        end
+
+        local raw_replies = client:exec()
+        if not raw_replies then
+            if (retry or 0) <= 0 then
+                error("MULTI/EXEC transaction aborted by the server")
+            else
+                --we're not quite done yet
+                return transaction(client, options, coroutine_block, retry - 1)
+            end
+        end
+
+        for i, parser in pairs(queued_parsers) do
+            table.insert(replies, i, parser(raw_replies[i]))
+        end
+
+        return replies, #queued_parsers
+    end
+
+    client_prototype.transaction = function(client, arg1, arg2)
+        local options, block
+        if not arg2 then
+            options, block = {}, arg1
+        elseif arg1 then --and arg2, implicitly
+            options, block = type(arg1)=="table" and arg1 or { arg1 }, arg2
+        else
+            error("Invalid parameters for redis transaction.")
+        end
+
+        if not options.watch then
+            watch_keys = { }
+            for i, v in pairs(options) do
+                if tonumber(i) then
+                    table.insert(watch_keys, v)
+                    options[i] = nil
+                end
+            end
+            options.watch = watch_keys
+        elseif not (type(options.watch) == 'table') then
+            options.watch = { options.watch }
+        end
+
+        if not options.cas then
+            local tx_block = block
+            block = function(client, ...)
+                client:multi()
+                return tx_block(client, ...) --can't wrap this in pcall because we're in a coroutine.
+            end
+        end
+
+        return transaction(client, options, block)
+    end
 end
 
 -- ############################################################################
@@ -449,9 +543,7 @@ function connect(...)
         else
             local server = uri.parse(select(1, ...))
             if server.scheme then
-                if server.scheme ~= 'redis' then
-                    error('"' .. server.scheme .. '" is an invalid scheme')
-                end
+                assert(server.scheme == 'redis', '"'..server.scheme..'" is an invalid scheme')
                 host, port = server.host, server.port or defaults.port
                 if server.query then
                     for k,v in server.query:gmatch('([-_%w]+)=([-_%w]+)') do
@@ -471,14 +563,9 @@ function connect(...)
         host, port = unpack(args)
     end
 
-    if host == nil then
-        error('please specify the address of running redis instance')
-    end
-
+    assert(host, 'please specify the address of running redis instance')
     local client_socket = socket.connect(host, tonumber(port))
-    if not client_socket then
-        error('could not connect to ' .. host .. ':' .. port)
-    end
+    assert(client_socket, 'could not connect to ' .. host .. ':' .. port)
     client_socket:setoption('tcp-nodelay', tcp_nodelay)
 
     return create_client(client_prototype, client_socket, commands)
@@ -501,16 +588,16 @@ commands = {
     multi      = command('MULTI'),
     exec       = command('EXEC'),
     discard    = command('DISCARD'),
-    watch      = command('WATCH'),
-    unwatch    = command('UNWATCH'),
+    watch      = command('WATCH'),          -- >= 2.2
+    unwatch    = command('UNWATCH'),        -- >= 2.2
 
     -- commands operating on string values
     set        = command('SET'),
     setnx      = command('SETNX', { response = toboolean }),
     setex      = command('SETEX'),          -- >= 2.0
-    mset       = command('MSET', { request = hmset_filter_args }),
+    mset       = command('MSET', { request = mset_filter_args }),
     msetnx     = command('MSETNX', {
-        request = hmset_filter_args,
+        request  = mset_filter_args,
         response = toboolean
     }),
     get        = command('GET'),
@@ -525,6 +612,11 @@ commands = {
     type       = command('TYPE'),
     append     = command('APPEND'),         -- >= 2.0
     substr     = command('SUBSTR'),         -- >= 2.0
+    strlen     = command('STRLEN'),         -- >= 2.2
+    setrange   = command('SETRANGE'),       -- >= 2.2
+    getrange   = command('GETRANGE'),       -- >= 2.2
+    setbit     = command('SETBIT'),         -- >= 2.2
+    getbit     = command('GETBIT'),         -- >= 2.2
 
     -- commands operating on the key space
     keys       = command('KEYS', {
@@ -555,6 +647,7 @@ commands = {
     expireat  = command('EXPIREAT', { response = toboolean }),
     dbsize    = command('DBSIZE'),
     ttl       = command('TTL'),
+    persist   = command('PERSIST', { response = toboolean }),     -- >= 2.2
 
     -- commands operating on lists
     rpush            = command('RPUSH'),
@@ -570,6 +663,10 @@ commands = {
     rpoplpush        = command('RPOPLPUSH'),
     blpop            = command('BLPOP'),
     brpop            = command('BRPOP'),
+    rpushx           = command('RPUSHX'),           -- >= 2.2
+    lpushx           = command('LPUSHX'),           -- >= 2.2
+    linsert          = command('LINSERT'),          -- >= 2.2
+    brpoplpush       = command('BRPOPLPUSH'),       -- >= 2.2
 
     -- commands operating on sets
     sadd             = command('SADD', { response = toboolean }),
@@ -591,9 +688,22 @@ commands = {
     zadd             = command('ZADD', { response = toboolean }),
     zincrby          = command('ZINCRBY'),
     zrem             = command('ZREM', { response = toboolean }),
-    zrange           = command('ZRANGE', { response = zset_range_parse }),
-    zrevrange        = command('ZREVRANGE', { response = zset_range_parse }),
-    zrangebyscore    = command('ZRANGEBYSCORE'),
+    zrange           = command('ZRANGE', {
+        request  = zset_range_request,
+        response = zset_range_reply,
+    }),
+    zrevrange        = command('ZREVRANGE', {
+        request  = zset_range_request,
+        response = zset_range_reply,
+    }),
+    zrangebyscore    = command('ZRANGEBYSCORE', {
+        request  = zset_range_byscore_request,
+        response = zset_range_reply,
+    }),
+    zrevrangebyscore = command('ZREVRANGEBYSCORE', {              -- >= 2.2
+        request  = zset_range_byscore_request,
+        response = zset_range_reply,
+    }),
     zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }),
     zinterstore      = command('ZINTERSTORE', { request = zset_store_request }),
     zcount           = command('ZCOUNT'),
@@ -608,35 +718,17 @@ commands = {
     hset             = command('HSET', { response = toboolean }),
     hsetnx           = command('HSETNX', { response = toboolean }),
     hmset            = command('HMSET', {
-        request = function(client, command, ...)
-            local args, arguments = {...}, { }
-            if #args == 2 then
-                table.insert(arguments, args[1])
-                for k, v in pairs(args[2]) do
-                    table.insert(arguments, k)
-                    table.insert(arguments, v)
-                end
-            else
-                arguments = args
-            end
-            request.multibulk(client, command, arguments)
-        end,
+        request  = hash_multi_request_builder(function(args, k, v)
+            table.insert(args, k)
+            table.insert(args, v)
+        end),
     }),
     hincrby          = command('HINCRBY'),
     hget             = command('HGET'),
     hmget            = command('HMGET', {
-        request = function(client, command, ...)
-            local args, arguments = {...}, { }
-            if #args == 2 then
-                table.insert(arguments, args[1])
-                for _, v in ipairs(args[2]) do
-                    table.insert(arguments, v)
-                end
-            else
-                arguments = args
-            end
-            request.multibulk(client, command, arguments)
-        end,
+        request  = hash_multi_request_builder(function(args, k, v)
+            table.insert(args, v)
+        end),
     }),
     hdel             = command('HDEL', { response = toboolean }),
     hexists          = command('HEXISTS', { response = toboolean }),
@@ -691,8 +783,15 @@ commands = {
                 end
 
                 if params.get then
-                    table.insert(query, 'GET')
-                    table.insert(query, params.get)
+                    if (type(params.get) == 'table') then
+                        for _, getarg in pairs(params.get) do
+                            table.insert(query, 'GET')
+                            table.insert(query, getarg)
+                        end
+                    else
+                        table.insert(query, 'GET')
+                        table.insert(query, params.get)
+                    end
                 end
 
                 if params.sort then
