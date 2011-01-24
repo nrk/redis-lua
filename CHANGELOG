@@ -1,4 +1,4 @@
-v2.0.1 (2011-xx-xx)
+v2.0.1 (2011-01-24)
   * Vastly improved abstraction for Redis transactions (MULTI/EXEC) supporting 
     check-and-set (CAS), automatic retries upon transaction failures and a few 
     optional arguments for initialization (enable CAS support, list of keys to 
