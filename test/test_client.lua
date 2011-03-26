@@ -488,7 +488,7 @@ context("Redis commands", function()
             assert_equal(redis:substr('var', 3, 5), 'bar')
             assert_equal(redis:substr('var', -3, -1), 'bar')
 
-            assert_nil(redis:substr('var', 5, 0))
+            assert_equal(redis:substr('var', 5, 0), '')
 
             redis:set('numeric', 123456789)
             assert_equal(redis:substr('numeric', 0, 4), '12345')
@@ -541,7 +541,7 @@ context("Redis commands", function()
             assert_equal(redis:getrange('var', 3, 5), 'bar')
             assert_equal(redis:getrange('var', -3, -1), 'bar')
 
-            assert_nil(redis:getrange('var', 5, 0))
+            assert_equal(redis:substr('var', 5, 0), '')
 
             redis:set('numeric', 123456789)
             assert_equal(redis:getrange('numeric', 0, 4), '12345')
