@@ -1,3 +1,7 @@
+v2.0.2 (2011-??-??)
+  * Added an abstraction for PUB/SUB that makes possible to consume messages 
+    pushed to channels using a coroutine-based iterator.
+
 v2.0.1 (2011-01-24)
   * Vastly improved abstraction for Redis transactions (MULTI/EXEC) supporting 
     check-and-set (CAS), automatic retries upon transaction failures and a few 
