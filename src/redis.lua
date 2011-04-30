@@ -343,6 +343,8 @@ client_prototype.undefine_command = function(client, name)
     undefine_command_impl(client, name)
 end
 
+-- Command pipelining
+
 client_prototype.pipeline = function(client, block)
     local simulate_queued = '+' .. protocol.queued
     local requests, replies, parsers = {}, {}, {}
@@ -393,6 +395,88 @@ client_prototype.pipeline = function(client, block)
 
     return replies, #requests
 end
+
+-- Publish/Subscribe
+
+do
+    local channels = function(channels)
+        if type(channels) == 'string' then
+            channels = { channels }
+        end
+        return channels
+    end
+
+    local subscribe = function(client, ...)
+        request.multibulk(client, 'subscribe', ...)
+    end
+    local psubscribe = function(client, ...)
+        request.multibulk(client, 'psubscribe', ...)
+    end
+    local unsubscribe = function(client, ...)
+        request.multibulk(client, 'unsubscribe')
+    end
+    local punsubscribe = function(client, ...)
+        request.multibulk(client, 'punsubscribe')
+    end
+
+    local consumer_loop = function(client)
+        local aborting, subscriptions = false, 0
+
+        local abort = function()
+            unsubscribe(client)
+            punsubscribe(client)
+            aborting = true
+        end
+
+        return coroutine.wrap(function()
+            while true do
+                local message
+                local response = response.read(client)
+
+                if response[1] == 'pmessage' then
+                    message = {
+                        kind    = response[1],
+                        pattern = response[2],
+                        channel = response[3],
+                        payload = response[4],
+                    }
+                else
+                    message = {
+                        kind    = response[1],
+                        channel = response[2],
+                        payload = response[3],
+                    }
+                end
+
+                if string.match(message.kind, '^p?subscribe$') then
+                    subscriptions = subscriptions + 1
+                end
+                if string.match(message.kind, '^p?unsubscribe$') then
+                    subscriptions = subscriptions - 1
+                end
+
+                if aborting and subscriptions == 0 then
+                    break
+                end
+                coroutine.yield(message, abort)
+            end
+        end)
+    end
+
+    client_prototype.pubsub = function(client, subscriptions)
+        if type(subscriptions) == 'table' then
+            if subscriptions.subscribe then
+                subscribe(client, channels(subscriptions.subscribe))
+            end
+            if subscriptions.psubscribe then
+                psubscribe(client, channels(subscriptions.psubscribe))
+            end
+        end
+        return consumer_loop(client)
+    end
+end
+
+-- Redis transactions (MULTI/EXEC)
 
 do
     local function identity(...) return ... end
