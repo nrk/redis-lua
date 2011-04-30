@@ -3,8 +3,7 @@ package.path = package.path .. ";../src/?.lua"
 require 'redis'
 
 local params = {
-    --host = '127.0.0.1',
-    host = '192.168.1.31',
+    host = '127.0.0.1',
     port = 6379,
 }
 
