@@ -423,9 +423,11 @@ do
         local aborting, subscriptions = false, 0
 
         local abort = function()
-            unsubscribe(client)
-            punsubscribe(client)
-            aborting = true
+            if not aborting then
+                unsubscribe(client)
+                punsubscribe(client)
+                aborting = true
+            end
         end
 
         return coroutine.wrap(function()
