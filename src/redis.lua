@@ -628,7 +628,7 @@ end
 
 -- ############################################################################
 
-function connect_tcp(socket, parameters)
+local function connect_tcp(socket, parameters)
     local host, port = parameters.host, tonumber(parameters.port)
     local ok, err = socket:connect(host, port)
     if not ok then
@@ -638,7 +638,7 @@ function connect_tcp(socket, parameters)
     return socket
 end
 
-function connect_unix(socket, parameters)
+local function connect_unix(socket, parameters)
     local ok, err = socket:connect(parameters.path)
     if not ok then
         error('could not connect to '..parameters.path..' ['..err..']')
@@ -646,7 +646,7 @@ function connect_unix(socket, parameters)
     return socket
 end
 
-function create_connection(parameters)
+local function create_connection(parameters)
     local perform_connection, driver
     local socket = require('socket')
 
