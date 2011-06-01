@@ -1,12 +1,14 @@
 module('Redis', package.seeall)
 
-local socket = require('socket')
-local uri    = require('socket.url')
+local commands, network, request, response = {}, {}, {}, {}
 
-local commands = {}
-local network, request, response = {}, {}, {}
+local defaults = {
+    host        = '127.0.0.1',
+    port        = 6379,
+    tcp_nodelay = true,
+    path        = nil
+}
 
-local defaults = { host = '127.0.0.1', port = 6379, tcp_nodelay = true }
 local protocol = {
     newline = '\r\n',
     ok      = 'OK',
@@ -14,6 +16,18 @@ local protocol = {
     queued  = 'QUEUED',
     null    = 'nil'
 }
+
+local function merge_defaults(parameters)
+    if parameters == nil then
+        parameters = {}
+    end
+    for k, v in pairs(defaults) do
+        if parameters[k] == nil then
+            parameters[k] = defaults[k]
+        end
+    end
+    return parameters
+end
 
 local function parse_boolean(v)
     if v == '1' or v == 'true' or v == 'TRUE' then
@@ -614,47 +628,72 @@ end
 
 -- ############################################################################
 
+function connect_tcp(socket, parameters)
+    local host, port = parameters.host, tonumber(parameters.port)
+    local ok, err = socket:connect(host, port)
+    if not ok then
+        error('could not connect to '..host..':'..port..' ['..err..']')
+    end
+    socket:setoption('tcp-nodelay', parameters.tcp_nodelay)
+    return socket
+end
+
+function connect_unix(socket, parameters)
+    local ok, err = socket:connect(parameters.path)
+    if not ok then
+        error('could not connect to '..parameters.path..' ['..err..']')
+    end
+    return socket
+end
+
+function create_connection(parameters)
+    local perform_connection, driver
+    local socket = require('socket')
+
+    if parameters.scheme == 'unix' then
+        perform_connection, driver = connect_unix, require('socket.unix')
+        assert(driver, 'your build of LuaSocket does not support UNIX domain sockets')
+    else
+        if parameters.scheme then
+            local scheme = parameters.scheme
+            assert(scheme == 'redis' or scheme == 'tcp', 'invalid scheme: '..scheme)
+        end
+        perform_connection, driver = connect_tcp, socket.tcp
+    end
+
+    return perform_connection(driver(), parameters)
+end
+
 function connect(...)
-    local args = {...}
-    local host, port = defaults.host, defaults.port
-    local tcp_nodelay = defaults.tcp_nodelay
+    local args, parameters = {...}, nil
 
     if #args == 1 then
         if type(args[1]) == 'table' then
-            host = args[1].host or defaults.host
-            port = args[1].port or defaults.port
-            if args[1].tcp_nodelay ~= nil then
-                tcp_nodelay = args[1].tcp_nodelay == true
-            end
+            parameters = args[1]
         else
-            local server = uri.parse(select(1, ...))
-            if server.scheme then
-                assert(server.scheme == 'redis', '"'..server.scheme..'" is an invalid scheme')
-                host, port = server.host, server.port or defaults.port
-                if server.query then
-                    for k,v in server.query:gmatch('([-_%w]+)=([-_%w]+)') do
+            local uri = require('socket.url')
+            parameters = uri.parse(select(1, ...))
+            if parameters.scheme then
+                if parameters.query then
+                    for k, v in parameters.query:gmatch('([-_%w]+)=([-_%w]+)') do
                         if k == 'tcp_nodelay' or k == 'tcp-nodelay' then
-                            tcp_nodelay = parse_boolean(v)
-                            if tcp_nodelay == nil then
-                                tcp_nodelay = defaults.tcp_nodelay
-                            end
+                            parameters.tcp_nodelay = parse_boolean(v)
                         end
                     end
                 end
             else
-                host, port = server.path, defaults.port
+                parameters.host = parameters.path
             end
         end
     elseif #args > 1 then
-        host, port = unpack(args)
+        local host, port = unpack(args)
+        parameters = { host = host, port = port }
     end
 
-    assert(host, 'please specify the address of running redis instance')
-    local client_socket = socket.connect(host, tonumber(port))
-    assert(client_socket, 'could not connect to ' .. host .. ':' .. port)
-    client_socket:setoption('tcp-nodelay', tcp_nodelay)
+    local socket = create_connection(merge_defaults(parameters))
+    local client = create_client(client_prototype, socket, commands)
 
-    return create_client(client_prototype, client_socket, commands)
+    return client
 end
 
 -- ############################################################################

@@ -10,6 +10,7 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 - Command pipelining
 - Redis transactions (MULTI/EXEC) with CAS
 - User-definable commands
+- UNIX domain sockets (when available in LuaSocket)
 
 ## Examples of usage ##
 
@@ -24,6 +25,13 @@ require 'redis'
 ``` lua
 local redis = Redis.connect('127.0.0.1', 6379)
 local response = redis:ping()           -- true
+```
+
+It is also possible to connect to a local redis instance using __UNIX domain sockets__
+if LuaSocket has been compiled with them enabled (unfortunately it is not the default):
+
+``` lua
+local redis = Redis.connect('unix:///tmp/redis.sock')
 ```
 
 ### Set keys and get their values ###
