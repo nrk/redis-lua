@@ -182,7 +182,10 @@ end
 function response.read(client)
     local res = client.network.read(client)
     local prefix  = res:sub(1, -#res)
-    local handler = assert(protocol.prefixes[prefix], 'unknown response prefix: '..prefix)
+    local handler = protocol.prefixes[prefix]
+    if not handler then
+        error('unknown response prefix: '..prefix)
+    end
     return handler(client, res)
 end
 
@@ -211,7 +214,9 @@ end
 function response.bulk(client, data)
     local str = data:sub(2)
     local len = tonumber(str)
-    assert(len, 'cannot parse ' .. str .. ' as data length')
+    if not len then
+        error('cannot parse ' .. str .. ' as data length')
+    end
 
     if len == -1 then return nil end
     local next_chunk = client.network.read(client, len + 2)
@@ -240,8 +245,10 @@ function response.integer(client, data)
     local number = tonumber(res)
 
     if not number then
-        assert(res == protocol.null, 'cannot parse ' .. res .. ' as numeric response.')
-        return nil
+        if res == protocol.null then
+            return nil
+        end
+        error('cannot parse '..res..' as a numeric response.')
     end
 
     return number
