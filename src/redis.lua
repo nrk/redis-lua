@@ -725,15 +725,15 @@ commands = {
     }),
     keys             = command('KEYS', {
         response = function(response)
-            if type(response) == 'table' then
-                return response
-            else
+            if type(response) == 'string' then
+                -- backwards compatibility path for Redis < 2.0
                 local keys = {}
                 response:gsub('[^%s]+', function(key)
                     table.insert(keys, key)
                 end)
-                return keys
+                response = keys
             end
+            return response
         end
     }),
     randomkey        = command('RANDOMKEY', {
