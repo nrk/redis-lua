@@ -360,9 +360,8 @@ end
 -- Command pipelining
 
 client_prototype.pipeline = function(client, block)
-    local simulate_queued = '+' .. protocol.queued
     local requests, replies, parsers = {}, {}, {}
-    local __netwrite, __netread = client.network.write, client.network.read
+    local socket_write, socket_read = client.network.write, client.network.read
 
     client.network.write = function(_, buffer)
         table.insert(requests, buffer)
@@ -373,9 +372,7 @@ client_prototype.pipeline = function(client, block)
     --       without further changes in the code, but it will surely
     --       disappear when the new command-definition infrastructure
     --       will finally be in place.
-    client.network.read = function()
-        return simulate_queued
-    end
+    client.network.read = function() return '+QUEUED' end
 
     local pipeline = setmetatable({}, {
         __index = function(env, name)
@@ -393,18 +390,17 @@ client_prototype.pipeline = function(client, block)
 
     local success, retval = pcall(block, pipeline)
 
-    client.network.write, client.network.read = __netwrite, __netread
+    client.network.write, client.network.read = socket_write, socket_read
     if not success then error(retval, 0) end
 
     client.network.write(client, table.concat(requests, ''))
 
     for i = 1, #requests do
-        local raw_reply, parser = response.read(client), parsers[i]
+        local reply, parser = response.read(client), parsers[i]
         if parser then
-            table.insert(replies, i, parser(raw_reply))
-        else
-            table.insert(replies, i, raw_reply)
+            reply = parser(reply)
         end
+        table.insert(replies, i, reply)
     end
 
     return replies, #requests
