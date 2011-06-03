@@ -2023,6 +2023,11 @@ context("Redis commands", function()
             if version.major < 2 then return end
             -- TODO: implement tests
         end)
+
+        test("CLIENT (redis:client)", function()
+            if version.major >= 2 and version.minor < 3 then return end
+            -- TODO: implement tests
+        end)
     end)
 
     context("Persistence control commands", function()

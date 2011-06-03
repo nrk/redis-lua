@@ -973,6 +973,7 @@ commands = {
     -- remote server control commands
     bgrewriteaof     = command('BGREWRITEAOF'),
     config           = command('CONFIG'),       -- >= 2.0
+    client           = command('CLIENT'),       -- >= 2.4
     slaveof          = command('SLAVEOF'),
     save             = command('SAVE'),
     bgsave           = command('BGSAVE'),
