@@ -987,6 +987,8 @@ commands = {
     lastsave         = command('LASTSAVE'),
     flushdb          = command('FLUSHDB'),
     flushall         = command('FLUSHALL'),
+    eval             = command('EVAL'),         -- >= 2.6
+    evalsha          = command('EVALSHA'),      -- >= 2.6
     shutdown         = command('SHUTDOWN', {
         request = fire_and_forget
     }),
