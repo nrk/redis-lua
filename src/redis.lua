@@ -647,21 +647,20 @@ local function connect_unix(socket, parameters)
 end
 
 local function create_connection(parameters)
-    local perform_connection, driver
-    local socket = require('socket')
+    local perform_connection, socket
 
     if parameters.scheme == 'unix' then
-        perform_connection, driver = connect_unix, require('socket.unix')
-        assert(driver, 'your build of LuaSocket does not support UNIX domain sockets')
+        perform_connection, socket = connect_unix, require('socket.unix')
+        assert(socket, 'your build of LuaSocket does not support UNIX domain sockets')
     else
         if parameters.scheme then
             local scheme = parameters.scheme
             assert(scheme == 'redis' or scheme == 'tcp', 'invalid scheme: '..scheme)
         end
-        perform_connection, driver = connect_tcp, socket.tcp
+        perform_connection, socket = connect_tcp, require('socket').tcp
     end
 
-    return perform_connection(driver(), parameters)
+    return perform_connection(socket(), parameters)
 end
 
 function connect(...)
