@@ -17,6 +17,11 @@ local protocol = {
     null    = 'nil'
 }
 
+local lua_error = error
+error = function(message, level)
+    lua_error(message, (level or 1) + 1)
+end
+
 local function merge_defaults(parameters)
     if parameters == nil then
         parameters = {}
