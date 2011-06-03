@@ -699,52 +699,31 @@ end
 -- ############################################################################
 
 commands = {
-    -- miscellaneous commands
-    ping       = command('PING', {
-        response = function(response) return response == 'PONG' end
-    }),
-    echo       = command('ECHO'),
-    auth       = command('AUTH'),
-
-    -- connection handling
-    quit       = command('QUIT', { request = fire_and_forget }),
-
-    -- transactions
-    multi      = command('MULTI'),
-    exec       = command('EXEC'),
-    discard    = command('DISCARD'),
-    watch      = command('WATCH'),          -- >= 2.2
-    unwatch    = command('UNWATCH'),        -- >= 2.2
-
-    -- commands operating on string values
-    set        = command('SET'),
-    setnx      = command('SETNX', { response = toboolean }),
-    setex      = command('SETEX'),          -- >= 2.0
-    mset       = command('MSET', { request = mset_filter_args }),
-    msetnx     = command('MSETNX', {
-        request  = mset_filter_args,
+    -- commands operating on the key space
+    exists           = command('EXISTS', {
         response = toboolean
     }),
-    get        = command('GET'),
-    mget       = command('MGET'),
-    getset     = command('GETSET'),
-    incr       = command('INCR'),
-    incrby     = command('INCRBY'),
-    decr       = command('DECR'),
-    decrby     = command('DECRBY'),
-    exists     = command('EXISTS', { response = toboolean }),
-    del        = command('DEL'),
-    type       = command('TYPE'),
-    append     = command('APPEND'),         -- >= 2.0
-    substr     = command('SUBSTR'),         -- >= 2.0
-    strlen     = command('STRLEN'),         -- >= 2.2
-    setrange   = command('SETRANGE'),       -- >= 2.2
-    getrange   = command('GETRANGE'),       -- >= 2.2
-    setbit     = command('SETBIT'),         -- >= 2.2
-    getbit     = command('GETBIT'),         -- >= 2.2
-
-    -- commands operating on the key space
-    keys       = command('KEYS', {
+    del              = command('DEL'),
+    type             = command('TYPE'),
+    rename           = command('RENAME'),
+    renamenx         = command('RENAMENX', {
+        response = toboolean
+    }),
+    expire           = command('EXPIRE', {
+        response = toboolean
+    }),
+    expireat         = command('EXPIREAT', {
+        response = toboolean
+    }),
+    ttl              = command('TTL'),
+    move             = command('MOVE', {
+        response = toboolean
+    }),
+    dbsize           = command('DBSIZE'),
+    persist          = command('PERSIST', {     -- >= 2.2
+        response = toboolean
+    }),
+    keys             = command('KEYS', {
         response = function(response)
             if type(response) == 'table' then
                 return response
@@ -757,7 +736,7 @@ commands = {
             end
         end
     }),
-    randomkey  = command('RANDOMKEY', {
+    randomkey        = command('RANDOMKEY', {
         response = function(response)
             if response == '' then
                 return nil
@@ -766,132 +745,15 @@ commands = {
             end
         end
     }),
-    rename    = command('RENAME'),
-    renamenx  = command('RENAMENX', { response = toboolean }),
-    expire    = command('EXPIRE', { response = toboolean }),
-    expireat  = command('EXPIREAT', { response = toboolean }),
-    dbsize    = command('DBSIZE'),
-    ttl       = command('TTL'),
-    persist   = command('PERSIST', { response = toboolean }),     -- >= 2.2
-
-    -- commands operating on lists
-    rpush            = command('RPUSH'),
-    lpush            = command('LPUSH'),
-    llen             = command('LLEN'),
-    lrange           = command('LRANGE'),
-    ltrim            = command('LTRIM'),
-    lindex           = command('LINDEX'),
-    lset             = command('LSET'),
-    lrem             = command('LREM'),
-    lpop             = command('LPOP'),
-    rpop             = command('RPOP'),
-    rpoplpush        = command('RPOPLPUSH'),
-    blpop            = command('BLPOP'),
-    brpop            = command('BRPOP'),
-    rpushx           = command('RPUSHX'),           -- >= 2.2
-    lpushx           = command('LPUSHX'),           -- >= 2.2
-    linsert          = command('LINSERT'),          -- >= 2.2
-    brpoplpush       = command('BRPOPLPUSH'),       -- >= 2.2
-
-    -- commands operating on sets
-    sadd             = command('SADD', { response = toboolean }),
-    srem             = command('SREM', { response = toboolean }),
-    spop             = command('SPOP'),
-    smove            = command('SMOVE', { response = toboolean }),
-    scard            = command('SCARD'),
-    sismember        = command('SISMEMBER', { response = toboolean }),
-    sinter           = command('SINTER'),
-    sinterstore      = command('SINTERSTORE'),
-    sunion           = command('SUNION'),
-    sunionstore      = command('SUNIONSTORE'),
-    sdiff            = command('SDIFF'),
-    sdiffstore       = command('SDIFFSTORE'),
-    smembers         = command('SMEMBERS'),
-    srandmember      = command('SRANDMEMBER'),
-
-    -- commands operating on sorted sets
-    zadd             = command('ZADD', { response = toboolean }),
-    zincrby          = command('ZINCRBY'),
-    zrem             = command('ZREM', { response = toboolean }),
-    zrange           = command('ZRANGE', {
-        request  = zset_range_request,
-        response = zset_range_reply,
-    }),
-    zrevrange        = command('ZREVRANGE', {
-        request  = zset_range_request,
-        response = zset_range_reply,
-    }),
-    zrangebyscore    = command('ZRANGEBYSCORE', {
-        request  = zset_range_byscore_request,
-        response = zset_range_reply,
-    }),
-    zrevrangebyscore = command('ZREVRANGEBYSCORE', {              -- >= 2.2
-        request  = zset_range_byscore_request,
-        response = zset_range_reply,
-    }),
-    zunionstore      = command('ZUNIONSTORE', { request = zset_store_request }),
-    zinterstore      = command('ZINTERSTORE', { request = zset_store_request }),
-    zcount           = command('ZCOUNT'),
-    zcard            = command('ZCARD'),
-    zscore           = command('ZSCORE'),
-    zremrangebyscore = command('ZREMRANGEBYSCORE'),
-    zrank            = command('ZRANK'),
-    zrevrank         = command('ZREVRANK'),
-    zremrangebyrank  = command('ZREMRANGEBYRANK'),
-
-    -- commands operating on hashes
-    hset             = command('HSET', { response = toboolean }),
-    hsetnx           = command('HSETNX', { response = toboolean }),
-    hmset            = command('HMSET', {
-        request  = hash_multi_request_builder(function(args, k, v)
-            table.insert(args, k)
-            table.insert(args, v)
-        end),
-    }),
-    hincrby          = command('HINCRBY'),
-    hget             = command('HGET'),
-    hmget            = command('HMGET', {
-        request  = hash_multi_request_builder(function(args, k, v)
-            table.insert(args, v)
-        end),
-    }),
-    hdel             = command('HDEL', { response = toboolean }),
-    hexists          = command('HEXISTS', { response = toboolean }),
-    hlen             = command('HLEN'),
-    hkeys            = command('HKEYS'),
-    hvals            = command('HVALS'),
-    hgetall          = command('HGETALL', {
-        response = function(reply, command, ...)
-            local new_reply = { }
-            for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
-            return new_reply
-        end
-    }),
-
-    -- publish - subscribe
-    subscribe        = command('SUBSCRIBE'),
-    unsubscribe      = command('UNSUBSCRIBE'),
-    psubscribe       = command('PSUBSCRIBE'),
-    punsubscribe     = command('PUNSUBSCRIBE'),
-    publish          = command('PUBLISH'),
-
-    -- multiple databases handling commands
-    select           = command('SELECT'),
-    move             = command('MOVE', { response = toboolean }),
-    flushdb          = command('FLUSHDB'),
-    flushall         = command('FLUSHALL'),
-
-    -- sorting
-    --[[ params = {
-            by    = 'weight_*',
-            get   = 'object_*',
-            limit = { 0, 10 },
-            sort  = 'desc',
-            alpha = true,
-        }
-    --]]
     sort             = command('SORT', {
         request = function(client, command, key, params)
+            --[[ params = {
+                    by    = 'weight_*',
+                    get   = 'object_*',
+                    limit = { 0, 10 },
+                    sort  = 'desc',
+                    alpha = true,
+                } --]]
             local query = { key }
 
             if params then
@@ -937,14 +799,189 @@ commands = {
         end
     }),
 
-    -- persistence control commands
+    -- commands operating on string values
+    set              = command('SET'),
+    setnx            = command('SETNX', {
+        response = toboolean
+    }),
+    setex            = command('SETEX'),        -- >= 2.0
+    mset             = command('MSET', {
+        request = mset_filter_args
+    }),
+    msetnx           = command('MSETNX', {
+        request  = mset_filter_args,
+        response = toboolean
+    }),
+    get              = command('GET'),
+    mget             = command('MGET'),
+    getset           = command('GETSET'),
+    incr             = command('INCR'),
+    incrby           = command('INCRBY'),
+    decr             = command('DECR'),
+    decrby           = command('DECRBY'),
+    append           = command('APPEND'),       -- >= 2.0
+    substr           = command('SUBSTR'),       -- >= 2.0
+    strlen           = command('STRLEN'),       -- >= 2.2
+    setrange         = command('SETRANGE'),     -- >= 2.2
+    getrange         = command('GETRANGE'),     -- >= 2.2
+    setbit           = command('SETBIT'),       -- >= 2.2
+    getbit           = command('GETBIT'),       -- >= 2.2
+
+    -- commands operating on lists
+    rpush            = command('RPUSH'),
+    lpush            = command('LPUSH'),
+    llen             = command('LLEN'),
+    lrange           = command('LRANGE'),
+    ltrim            = command('LTRIM'),
+    lindex           = command('LINDEX'),
+    lset             = command('LSET'),
+    lrem             = command('LREM'),
+    lpop             = command('LPOP'),
+    rpop             = command('RPOP'),
+    rpoplpush        = command('RPOPLPUSH'),
+    blpop            = command('BLPOP'),        -- >= 2.0
+    brpop            = command('BRPOP'),        -- >= 2.0
+    rpushx           = command('RPUSHX'),       -- >= 2.2
+    lpushx           = command('LPUSHX'),       -- >= 2.2
+    linsert          = command('LINSERT'),      -- >= 2.2
+    brpoplpush       = command('BRPOPLPUSH'),   -- >= 2.2
+
+    -- commands operating on sets
+    sadd             = command('SADD', {
+        response = toboolean
+    }),
+    srem             = command('SREM', {
+        response = toboolean
+    }),
+    spop             = command('SPOP'),
+    smove            = command('SMOVE', {
+        response = toboolean
+    }),
+    scard            = command('SCARD'),
+    sismember        = command('SISMEMBER', {
+        response = toboolean
+    }),
+    sinter           = command('SINTER'),
+    sinterstore      = command('SINTERSTORE'),
+    sunion           = command('SUNION'),
+    sunionstore      = command('SUNIONSTORE'),
+    sdiff            = command('SDIFF'),
+    sdiffstore       = command('SDIFFSTORE'),
+    smembers         = command('SMEMBERS'),
+    srandmember      = command('SRANDMEMBER'),
+
+    -- commands operating on sorted sets
+    zadd             = command('ZADD', {
+        response = toboolean
+    }),
+    zincrby          = command('ZINCRBY'),
+    zrem             = command('ZREM', {
+        response = toboolean
+    }),
+    zrange           = command('ZRANGE', {
+        request  = zset_range_request,
+        response = zset_range_reply,
+    }),
+    zrevrange        = command('ZREVRANGE', {
+        request  = zset_range_request,
+        response = zset_range_reply,
+    }),
+    zrangebyscore    = command('ZRANGEBYSCORE', {
+        request  = zset_range_byscore_request,
+        response = zset_range_reply,
+    }),
+    zrevrangebyscore = command('ZREVRANGEBYSCORE', {    -- >= 2.2
+        request  = zset_range_byscore_request,
+        response = zset_range_reply,
+    }),
+    zunionstore      = command('ZUNIONSTORE', {         -- >= 2.0
+        request = zset_store_request
+    }),
+    zinterstore      = command('ZINTERSTORE', {         -- >= 2.0
+        request = zset_store_request
+    }),
+    zcount           = command('ZCOUNT'),
+    zcard            = command('ZCARD'),
+    zscore           = command('ZSCORE'),
+    zremrangebyscore = command('ZREMRANGEBYSCORE'),
+    zrank            = command('ZRANK'),                -- >= 2.0
+    zrevrank         = command('ZREVRANK'),             -- >= 2.0
+    zremrangebyrank  = command('ZREMRANGEBYRANK'),      -- >= 2.0
+
+    -- commands operating on hashes
+    hset             = command('HSET', {        -- >= 2.0
+        response = toboolean
+    }),
+    hsetnx           = command('HSETNX', {      -- >= 2.0
+        response = toboolean
+    }),
+    hmset            = command('HMSET', {       -- >= 2.0
+        request  = hash_multi_request_builder(function(args, k, v)
+            table.insert(args, k)
+            table.insert(args, v)
+        end),
+    }),
+    hincrby          = command('HINCRBY'),      -- >= 2.0
+    hget             = command('HGET'),         -- >= 2.0
+    hmget            = command('HMGET', {       -- >= 2.0
+        request  = hash_multi_request_builder(function(args, k, v)
+            table.insert(args, v)
+        end),
+    }),
+    hdel             = command('HDEL', {        -- >= 2.0
+        response = toboolean
+    }),
+    hexists          = command('HEXISTS', {     -- >= 2.0
+        response = toboolean
+    }),
+    hlen             = command('HLEN'),         -- >= 2.0
+    hkeys            = command('HKEYS'),        -- >= 2.0
+    hvals            = command('HVALS'),        -- >= 2.0
+    hgetall          = command('HGETALL', {     -- >= 2.0
+        response = function(reply, command, ...)
+            local new_reply = { }
+            for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
+            return new_reply
+        end
+    }),
+
+    -- connection related commands
+    ping             = command('PING', {
+        response = function(response) return response == 'PONG' end
+    }),
+    echo             = command('ECHO'),
+    auth             = command('AUTH'),
+    select           = command('SELECT'),
+    quit             = command('QUIT', {
+        request = fire_and_forget
+    }),
+
+    -- transactions
+    multi            = command('MULTI'),        -- >= 2.0
+    exec             = command('EXEC'),         -- >= 2.0
+    discard          = command('DISCARD'),      -- >= 2.0
+    watch            = command('WATCH'),        -- >= 2.2
+    unwatch          = command('UNWATCH'),      -- >= 2.2
+
+    -- publish - subscribe
+    subscribe        = command('SUBSCRIBE'),    -- >= 2.0
+    unsubscribe      = command('UNSUBSCRIBE'),  -- >= 2.0
+    psubscribe       = command('PSUBSCRIBE'),   -- >= 2.0
+    punsubscribe     = command('PUNSUBSCRIBE'), -- >= 2.0
+    publish          = command('PUBLISH'),      -- >= 2.0
+
+    -- remote server control commands
+    bgrewriteaof     = command('BGREWRITEAOF'),
+    config           = command('CONFIG'),       -- >= 2.0
+    slaveof          = command('SLAVEOF'),
     save             = command('SAVE'),
     bgsave           = command('BGSAVE'),
     lastsave         = command('LASTSAVE'),
-    shutdown         = command('SHUTDOWN', { request = fire_and_forget }),
-    bgrewriteaof     = command('BGREWRITEAOF'),
-
-    -- remote server control commands
+    flushdb          = command('FLUSHDB'),
+    flushall         = command('FLUSHALL'),
+    shutdown         = command('SHUTDOWN', {
+        request = fire_and_forget
+    }),
     info             = command('INFO', {
         response = function(response)
             local info = {}
@@ -963,6 +1000,4 @@ commands = {
             return info
         end
     }),
-    slaveof          = command('SLAVEOF'),
-    config           = command('CONFIG'),
 }
