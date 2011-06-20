@@ -1,4 +1,4 @@
-v2.0.2 (2011-??-??)
+v2.0.2 (2011-06-20)
   * Added an abstraction for PUB/SUB that makes possible to consume messages 
     pushed to channels using a coroutine-based iterator.
 
