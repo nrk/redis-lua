@@ -2265,9 +2265,18 @@ context("Redis commands", function()
 
         test('SUBSCRIBE (redis:subscribe)', function()
             redis:subscribe('redis-lua-publish')
-            -- TODO test message data
+
+            -- we have one subscriber
+            data = 'data' .. tostring(math.random(1000))
             redis_pub = utils.create_client(settings)
-            assert_equal(redis_pub:publish('redis-lua-publish', 'test'), 1)
+            assert_equal(redis_pub:publish('redis-lua-publish', data), 1)
+            -- we have data
+            response = redis:subscribe('redis-lua-publish')
+            -- {"message","redis-lua-publish","testXXX"}
+            assert_true(table.contains(response, 'message'))
+            assert_true(table.contains(response, 'redis-lua-publish'))
+            assert_true(table.contains(response, data))
+
             redis:unsubscribe('redis-lua-publish')
         end)
     end)
