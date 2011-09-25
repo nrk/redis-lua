@@ -2257,4 +2257,18 @@ context("Redis commands", function()
             assert_equal(processed, 0)
         end)
     end)
+
+    context("Pub/Sub", function()
+        test('PUBLISH (redis:publish)', function()
+            assert_equal(redis:publish('redis-lua-publish', 'test'), 0)
+        end)
+
+        test('SUBSCRIBE (redis:subscribe)', function()
+            redis:subscribe('redis-lua-publish')
+            -- TODO test message data
+            redis_pub = utils.create_client(settings)
+            assert_equal(redis_pub:publish('redis-lua-publish', 'test'), 1)
+            redis:unsubscribe('redis-lua-publish')
+        end)
+    end)
 end)
