@@ -2086,7 +2086,7 @@ context("Redis commands", function()
         end)
 
         test("BGREWRITEAOF (redis:bgrewriteaof)", function()
-            assert_type(string.match(redis:bgrewriteaof(), 'Background append only file rewriting %w+'), 'string')
+            assert_match('Background append only file rewriting %w+', redis:bgrewriteaof())
         end)
 
         test("LASTSAVE (redis:lastsave)", function()
