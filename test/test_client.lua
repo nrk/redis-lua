@@ -712,6 +712,15 @@ context("Redis commands", function()
             assert_equal(redis:incrby('foo', -110), -100)
         end)
 
+        test("INCRBYFLOAT (redis:incrbyfloat)", function()
+            if version.major >= 2 and version.minor <= 4 then return end
+
+            redis:set('foo', 2)
+            assert_equal(redis:incrbyfloat('foo', 20.123), 22.123)
+            assert_equal(redis:incrbyfloat('foo', -12.123), 10)
+            assert_equal(redis:incrbyfloat('foo', -110.01), -100.01)
+        end)
+
         test("DECR (redis:decr)", function()
             assert_equal(redis:decr('foo'), -1)
             assert_equal(redis:decr('foo'), -2)
@@ -1996,6 +2005,24 @@ context("Redis commands", function()
             assert_error(function()
                 redis:set('foo', 'bar')
                 redis:hincrby('foo', 'bar', 1)
+            end)
+        end)
+
+        test("HINCRBYFLOAT (redis:hincrbyfloat)", function()
+            if version.major >= 2 and version.minor <= 4 then return end
+
+            assert_equal(redis:hincrbyfloat('hash', 'counter', 10.1), 10.1)
+            assert_equal(redis:hincrbyfloat('hash', 'counter', 10.4), 20.5)
+            assert_equal(redis:hincrbyfloat('hash', 'counter', -20.000), 0.5)
+
+            assert_error(function()
+                redis:hset('hash', 'field', 'string_value')
+                redis:hincrbyfloat('hash', 'field', 10.10)
+            end)
+
+            assert_error(function()
+                redis:set('foo', 'bar')
+                redis:hincrbyfloat('foo', 'bar', 1.10)
             end)
         end)
 

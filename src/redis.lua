@@ -875,6 +875,11 @@ commands = {
     getset           = command('GETSET'),
     incr             = command('INCR'),
     incrby           = command('INCRBY'),
+    incrbyfloat      = command('INCRBYFLOAT', { -- >= 2.6
+        response = function(reply, command, ...)
+            return tonumber(reply)
+        end,
+    }),
     decr             = command('DECR'),
     decrby           = command('DECRBY'),
     append           = command('APPEND'),       -- >= 2.0
@@ -980,6 +985,11 @@ commands = {
         end),
     }),
     hincrby          = command('HINCRBY'),      -- >= 2.0
+    hincrbyfloat     = command('HINCRBYFLOAT', {-- >= 2.6
+        response = function(reply, command, ...)
+            return tonumber(reply)
+        end,
+    }),
     hget             = command('HGET'),         -- >= 2.0
     hmget            = command('HMGET', {       -- >= 2.0
         request  = hash_multi_request_builder(function(args, k, v)
