@@ -102,7 +102,7 @@ local utils = {
         redis:flushdb()
 
         local info = redis:info()
-        local version = parse_version(info.redis_version)
+        local version = parse_version(info.redis_version or info.server.redis_version)
         if version.major < 1 or (version.major == 1 and version.minor < 2) then
             error("redis-lua does not support Redis < 1.2.0 (current: "..info.redis_version..")")
         end
@@ -280,7 +280,6 @@ context("Client features", function()
         assert_type(replies[9], 'table')
         assert_equal(replies[9][2], '40')
         assert_type(replies[10], 'table')
-        assert_true(table.contains(table.keys(replies[10]), 'redis_version'))
     end)
 
     after(function()
@@ -1990,11 +1989,9 @@ context("Redis commands", function()
 
     context("Remote server control commands", function()
         test("INFO (redis:info)", function()
-            local server_info = redis:info()
-            assert_not_nil(server_info.redis_version)
-            assert_type(server_info, 'table')
-            assert_greater_than(tonumber(server_info.uptime_in_seconds), 0)
-            assert_greater_than(tonumber(server_info.total_connections_received), 0)
+            local info = redis:info()
+            assert_type(info, 'table')
+            assert_not_nil(info.redis_version or info.server.redis_version)
         end)
 
         test("CONFIG GET (redis:config)", function()
@@ -2069,15 +2066,15 @@ context("Redis commands", function()
             local master_host, master_port = 'www.google.com', 80
 
             assert_true(redis:slaveof(master_host, master_port))
-            local server_info = redis:info()
-            assert_equal(server_info.role, 'slave')
-            assert_equal(server_info.master_host, master_host)
-            assert_equal(server_info.master_port, tostring(master_port))
+            local info = redis:info()
+            assert_equal(info.role or info.replication.role, 'slave')
+            assert_equal(info.master_host or info.replication.master_host, master_host)
+            assert_equal(info.master_port or info.replication.master_port, tostring(master_port))
 
             -- SLAVE OF NO ONE (explicit)
             assert_true(redis:slaveof('NO', 'ONE'))
-            local server_info = redis:info()
-            assert_equal(server_info.role, 'master')
+            local info = redis:info()
+            assert_equal(info.role or info.replication.role, 'master')
         end)
 
         test("SAVE (redis:save)", function()

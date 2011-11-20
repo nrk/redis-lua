@@ -149,7 +149,7 @@ local function hash_multi_request_builder(builder_callback)
     end
 end
 
-local function parse_info_reply(response)
+local function parse_info(response)
     local info = {}
     response:gsub('([^\r\n]*)\r\n', function(kv)
         local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
@@ -161,6 +161,32 @@ local function parse_info_reply(response)
             end)
         else
             info[k] = v
+        end
+    end)
+    return info
+end
+
+local function parse_info_new(response)
+    local info, current = {}, nil
+    response:gsub('([^\r\n]*)\r\n', function(kv)
+        if kv == '' then return end
+
+        local section = kv:match(('^# (%w+)'):rep(1))
+        if section then
+            current = section:lower()
+            info[current] = {}
+            return
+        end
+
+        local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
+        if (k:match('db%d+')) then
+            info[current][k] = {}
+            v:gsub(',', function(dbkv)
+                local dbk,dbv = kv:match('([^:]*)=([^:]*)')
+                info[current][dbk] = dbv
+            end)
+        else
+            info[current][k] = v
         end
     end)
     return info
@@ -1039,7 +1065,10 @@ commands = {
     }),
     info             = command('INFO', {
         response = function(response)
-            return parse_info_reply(response)
+            if string.find(response, '^# ') then
+                return parse_info_new(response)
+            end
+            return parse_info(response)
         end
     }),
 }
