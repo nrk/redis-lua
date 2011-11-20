@@ -149,6 +149,23 @@ local function hash_multi_request_builder(builder_callback)
     end
 end
 
+local function parse_info_reply(response)
+    local info = {}
+    response:gsub('([^\r\n]*)\r\n', function(kv)
+        local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
+        if (k:match('db%d+')) then
+            info[k] = {}
+            v:gsub(',', function(dbkv)
+                local dbk,dbv = kv:match('([^:]*)=([^:]*)')
+                info[k][dbk] = dbv
+            end)
+        else
+            info[k] = v
+        end
+    end)
+    return info
+end
+
 local function load_methods(proto, methods)
     local redis = setmetatable ({}, getmetatable(proto))
     for i, v in pairs(proto) do redis[i] = v end
@@ -1022,20 +1039,7 @@ commands = {
     }),
     info             = command('INFO', {
         response = function(response)
-            local info = {}
-            response:gsub('([^\r\n]*)\r\n', function(kv)
-                local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
-                if (k:match('db%d+')) then
-                    info[k] = {}
-                    v:gsub(',', function(dbkv)
-                        local dbk,dbv = kv:match('([^:]*)=([^:]*)')
-                        info[k][dbk] = dbv
-                    end)
-                else
-                    info[k] = v
-                end
-            end)
-            return info
+            return parse_info_reply(response)
         end
     }),
 }
