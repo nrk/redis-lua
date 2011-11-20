@@ -1997,9 +1997,35 @@ context("Redis commands", function()
             assert_greater_than(tonumber(server_info.total_connections_received), 0)
         end)
 
-        test("CONFIG (redis:config)", function()
+        test("CONFIG GET (redis:config)", function()
             if version.major < 2 then return end
-            -- TODO: implement tests
+
+            local config = redis:config('get', '*')
+            assert_type(config, 'table')
+            assert_not_nil(config.loglevel)
+            assert_not_nil(config['hash-max-zipmap-entries'])
+
+            local config = redis:config('get', '*max-*-entries*')
+            assert_type(config, 'table')
+            assert_nil(config.loglevel)
+            assert_not_nil(config['hash-max-zipmap-entries'])
+        end)
+
+        test("CONFIG SET (redis:config)", function()
+            if version.major < 2 then return end
+
+            local new, previous = 'notice', redis:config('get', 'loglevel').loglevel
+
+            assert_type(previous, 'string')
+
+            assert_true(redis:config('set', 'loglevel', new))
+            assert_equal(redis:config('get', 'loglevel').loglevel, new)
+
+            assert_true(redis:config('set', 'loglevel', previous))
+        end)
+
+        test("CONFIG RESETSTAT (redis:config)", function()
+            assert_true(redis:config('resetstat'))
         end)
 
         test("CLIENT (redis:client)", function()

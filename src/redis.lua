@@ -979,7 +979,17 @@ commands = {
 
     -- remote server control commands
     bgrewriteaof     = command('BGREWRITEAOF'),
-    config           = command('CONFIG'),       -- >= 2.0
+    config           = command('CONFIG', {     -- >= 2.0
+        response = function(reply, command, ...)
+            if (type(reply) == 'table') then
+                local new_reply = { }
+                for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
+                return new_reply
+            end
+
+            return reply
+        end
+    }),
     client           = command('CLIENT'),       -- >= 2.4
     slaveof          = command('SLAVEOF'),
     save             = command('SAVE'),
