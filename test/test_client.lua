@@ -2335,4 +2335,18 @@ context("Redis commands", function()
             redis:unsubscribe('redis-lua-publish')
         end)
     end)
+
+    context("Scripting", function()
+        test('EVAL (redis:eval)', function()
+            if version.major < 2 and version.minor <= 4 then return end
+        end)
+
+        test('EVALSHA (redis:evalsha)', function()
+            if version.major < 2 and version.minor <= 4 then return end
+        end)
+
+        test('SCRIPT (redis:script)', function()
+            if version.major < 2 and version.minor <= 4 then return end
+        end)
+    end)
 end)
