@@ -430,6 +430,18 @@ context("Redis commands", function()
             assert_lte(redis:ttl('foo'), 5)
         end)
 
+        test("PTTL (redis:pttl)", function()
+            if version.major >= 2 and version.minor <= 4 then return end
+
+            redis:set('foo', 'bar')
+            assert_equal(redis:pttl('foo'), -1)
+
+            local ttl = 5
+            assert_true(redis:expire('foo', ttl))
+            assert_lte(redis:pttl('foo'), 5 * 1000)
+            assert_gte(redis:pttl('foo'), 5 * 1000 - 500)
+        end)
+
         test("EXPIRE (redis:expire)", function()
             redis:set('foo', 'bar')
             assert_true(redis:expire('foo', 2))
@@ -447,6 +459,19 @@ context("Redis commands", function()
             assert_false(redis:exists('foo'))
         end)
 
+        test("PEXPIRE (redis:pexpire)", function()
+            if version.major >= 2 and version.minor <= 4 then return end
+
+            local ttl = 1
+            redis:set('foo', 'bar')
+            assert_true(redis:pexpire('foo', ttl * 1000))
+            assert_true(redis:exists('foo'))
+            assert_lte(redis:pttl('foo'), ttl * 1000)
+            assert_gte(redis:pttl('foo'), ttl * 1000 - 500)
+            utils.sleep(ttl)
+            assert_false(redis:exists('foo'))
+        end)
+
         test("EXPIREAT (redis:expireat)", function()
             redis:set('foo', 'bar')
             assert_true(redis:expireat('foo', os.time() + 2))
@@ -456,6 +481,21 @@ context("Redis commands", function()
 
             redis:set('foo', 'bar')
             assert_true(redis:expireat('foo', os.time() - 100))
+            assert_false(redis:exists('foo'))
+        end)
+
+        test("PEXPIREAT (redis:pexpireat)", function()
+            if version.major >= 2 and version.minor <= 4 then return end
+
+            local ttl = 2
+            redis:set('foo', 'bar')
+            assert_true(redis:pexpireat('foo', os.time() + ttl * 1000))
+            assert_lte(redis:pttl('foo'), ttl * 1000)
+            utils.sleep(ttl + 1)
+            assert_false(redis:exists('foo'))
+
+            redis:set('foo', 'bar')
+            assert_true(redis:pexpireat('foo', os.time() - 100 * 1000))
             assert_false(redis:exists('foo'))
         end)
 
@@ -596,6 +636,24 @@ context("Redis commands", function()
             assert_error(function() redis:setex('hoge', 2.5, 'piyo') end)
             assert_error(function() redis:setex('hoge', 0, 'piyo') end)
             assert_error(function() redis:setex('hoge', -10, 'piyo') end)
+        end)
+
+        test("PSETEX (redis:psetex)", function()
+            if version.major >= 2 and version.minor <= 4 then return end
+
+            local ttl = 10 * 1000
+            assert_true(redis:psetex('foo', ttl, 'bar'))
+            assert_true(redis:exists('foo'))
+            assert_lte(redis:pttl('foo'), ttl)
+            assert_gte(redis:pttl('foo'), ttl - 500)
+
+            assert_true(redis:psetex('hoge', 1 * 1000, 'piyo'))
+            utils.sleep(2)
+            assert_false(redis:exists('hoge'))
+
+            assert_error(function() redis:psetex('hoge', 2.5, 'piyo') end)
+            assert_error(function() redis:psetex('hoge', 0, 'piyo') end)
+            assert_error(function() redis:psetex('hoge', -10, 'piyo') end)
         end)
 
         test("MSET (redis:mset)", function()

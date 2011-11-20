@@ -762,10 +762,17 @@ commands = {
     expire           = command('EXPIRE', {
         response = toboolean
     }),
+    pexpire          = command('PEXPIRE', {     -- >= 2.6
+        response = toboolean
+    }),
     expireat         = command('EXPIREAT', {
         response = toboolean
     }),
+    pexpireat        = command('PEXPIREAT', {   -- >= 2.6
+        response = toboolean
+    }),
     ttl              = command('TTL'),
+    pttl             = command('PTTL'),         -- >= 2.6
     move             = command('MOVE', {
         response = toboolean
     }),
@@ -855,6 +862,7 @@ commands = {
         response = toboolean
     }),
     setex            = command('SETEX'),        -- >= 2.0
+    psetex           = command('PSETEX'),       -- >= 2.6
     mset             = command('MSET', {
         request = mset_filter_args
     }),
