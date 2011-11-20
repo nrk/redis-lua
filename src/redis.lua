@@ -1002,6 +1002,24 @@ commands = {
     shutdown         = command('SHUTDOWN', {
         request = fire_and_forget
     }),
+    slowlog          = command('SLOWLOG', {     -- >= 2.2.13
+        response = function(reply, command, ...)
+            if (type(reply) == 'table') then
+                local structured = { }
+                for index, entry in ipairs(reply) do
+                    structured[index] = {
+                        id = tonumber(entry[1]),
+                        timestamp = tonumber(entry[2]),
+                        duration = tonumber(entry[3]),
+                        command = entry[4],
+                    }
+                end
+                return structured
+            end
+
+            return reply
+        end
+    }),
     info             = command('INFO', {
         response = function(response)
             local info = {}

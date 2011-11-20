@@ -2028,6 +2028,38 @@ context("Redis commands", function()
             assert_true(redis:config('resetstat'))
         end)
 
+        test("SLOWLOG RESET (redis:slowlog)", function()
+            if version.major >= 2 and version.minor < 2 then return end
+
+            assert_true(redis:slowlog('reset'))
+        end)
+
+        test("SLOWLOG GET (redis:slowlog)", function()
+            if version.major >= 2 and version.minor < 2 then return end
+
+            local previous = redis:config('get', 'slowlog-log-slower-than')['slowlog-log-slower-than']
+
+            redis:config('set', 'slowlog-log-slower-than', 0)
+            redis:set('foo', 'bar')
+            redis:del('foo')
+
+            local log = redis:slowlog('get')
+            assert_type(log, 'table')
+            assert_greater_than(#log, 0)
+
+            assert_type(log[1], 'table')
+            assert_greater_than(log[1].id, 0)
+            assert_greater_than(log[1].timestamp, 0)
+            assert_greater_than(log[1].duration, 0)
+            assert_type(log[1].command, 'table')
+
+            local log = redis:slowlog('get', 1)
+            assert_type(log, 'table')
+            assert_equal(#log, 1)
+
+            redis:config('set', 'slowlog-log-slower-than', previous or 10000)
+        end)
+
         test("CLIENT (redis:client)", function()
             if version.major >= 2 and version.minor < 3 then return end
             -- TODO: implement tests
