@@ -18,9 +18,6 @@ local protocol = {
 }
 
 local lua_error = error
-error = function(message, level)
-    lua_error(message, (level or 1) + 1)
-end
 
 local function merge_defaults(parameters)
     if parameters == nil then
@@ -216,13 +213,13 @@ end
 
 function network.write(client, buffer)
     local _, err = client.network.socket:send(buffer)
-    if err then error(err) end
+    if err then client.error(err) end
 end
 
 function network.read(client, len)
     if len == nil then len = '*l' end
     local line, err = client.network.socket:receive(len)
-    if not err then return line else error('connection error: ' .. err) end
+    if not err then return line else client.error('connection error: ' .. err) end
 end
 
 -- ############################################################################
@@ -232,7 +229,7 @@ function response.read(client)
     local prefix  = res:sub(1, -#res)
     local handler = protocol.prefixes[prefix]
     if not handler then
-        error('unknown response prefix: '..prefix)
+        client.error('unknown response prefix: '..prefix)
     end
     return handler(client, res)
 end
@@ -253,9 +250,9 @@ function response.error(client, data)
     local err_line = data:sub(2)
 
     if err_line:sub(1, 3) == protocol.err then
-        error('redis error: ' .. err_line:sub(5))
+        client.error('redis error: ' .. err_line:sub(5))
     else
-        error('redis error: ' .. err_line)
+        client.error('redis error: ' .. err_line)
     end
 end
 
@@ -263,7 +260,7 @@ function response.bulk(client, data)
     local str = data:sub(2)
     local len = tonumber(str)
     if not len then
-        error('cannot parse ' .. str .. ' as data length')
+        client.error('cannot parse ' .. str .. ' as data length')
     end
 
     if len == -1 then return nil end
@@ -296,7 +293,7 @@ function response.integer(client, data)
         if res == protocol.null then
             return nil
         end
-        error('cannot parse '..res..' as a numeric response.')
+        client.error('cannot parse '..res..' as a numeric response.')
     end
 
     return number
@@ -320,7 +317,7 @@ function request.raw(client, buffer)
     elseif bufferType == 'string' then
         client.network.write(client, buffer)
     else
-        error('argument error: ' .. bufferType)
+        client.error('argument error: ' .. bufferType)
     end
 end
 
@@ -433,7 +430,7 @@ client_prototype.pipeline = function(client, block)
         __index = function(env, name)
             local cmd = client[name]
             if not cmd then
-                error('unknown redis command: ' .. name, 2)
+                client.error('unknown redis command: ' .. name, 2)
             end
             return function(self, ...)
                 local reply = cmd(client, ...)
@@ -446,7 +443,7 @@ client_prototype.pipeline = function(client, block)
     local success, retval = pcall(block, pipeline)
 
     client.network.write, client.network.read = socket_write, socket_read
-    if not success then error(retval, 0) end
+    if not success then client.error(retval, 0) end
 
     client.network.write(client, table.concat(requests, ''))
 
@@ -564,7 +561,7 @@ do
 
         local transaction_client = setmetatable({}, {__index=client})
         transaction_client.exec  = function(...)
-            error('cannot use EXEC inside a transaction block')
+            client.error('cannot use EXEC inside a transaction block')
         end
         transaction_client.multi = function(...)
             coroutine.yield()
@@ -585,7 +582,7 @@ do
             return reply
         end
         transaction_client.watch = function(...)
-            error('WATCH inside MULTI is not allowed')
+            client.error('WATCH inside MULTI is not allowed')
         end
         setmetatable(transaction_client, { __index = function(t, k)
                 local cmd = client[k]
@@ -628,7 +625,7 @@ do
         local raw_replies = client:exec()
         if not raw_replies then
             if (retry or 0) <= 0 then
-                error("MULTI/EXEC transaction aborted by the server")
+                client.error("MULTI/EXEC transaction aborted by the server")
             else
                 --we're not quite done yet
                 return transaction(client, options, coroutine_block, retry - 1)
@@ -649,7 +646,7 @@ do
         elseif arg1 then --and arg2, implicitly
             options, block = type(arg1)=="table" and arg1 or { arg1 }, arg2
         else
-            error("Invalid parameters for redis transaction.")
+            client.error("Invalid parameters for redis transaction.")
         end
 
         if not options.watch then
@@ -683,7 +680,7 @@ local function connect_tcp(socket, parameters)
     local host, port = parameters.host, tonumber(parameters.port)
     local ok, err = socket:connect(host, port)
     if not ok then
-        error('could not connect to '..host..':'..port..' ['..err..']')
+        client.error('could not connect to '..host..':'..port..' ['..err..']')
     end
     socket:setoption('tcp-nodelay', parameters.tcp_nodelay)
     return socket
@@ -692,7 +689,7 @@ end
 local function connect_unix(socket, parameters)
     local ok, err = socket:connect(parameters.path)
     if not ok then
-        error('could not connect to '..parameters.path..' ['..err..']')
+        client.error('could not connect to '..parameters.path..' ['..err..']')
     end
     return socket
 end
@@ -742,6 +739,10 @@ function connect(...)
 
     local socket = create_connection(merge_defaults(parameters))
     local client = create_client(client_prototype, socket, commands)
+    
+    client.error = function(message, level)
+        lua_error(message, (level or 1) + 1)
+    end
 
     return client
 end
