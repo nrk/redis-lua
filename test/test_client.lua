@@ -173,6 +173,10 @@ make_assertion("response_queued", "to be queued", function(response)
         return false
     end
 end)
+make_assertion("error_message", "result to be an error with the expected message", function(msg, f)
+    local ok, err = pcall(f)
+    return not ok and err:match(msg)
+end)
 
 -- ------------------------------------------------------------------------- --
 
@@ -184,6 +188,12 @@ context("Client initialization", function()
 
         redis.network.socket:send("PING\r\n")
         assert_equal(redis.network.socket:receive('*l'), '+PONG')
+    end)
+
+    test("Can handle connection failures", function()
+        assert_error_message("could not connect to .*:%d+ %[connection refused%]", function()
+            Redis.connect(settings.host, settings.port + 100)
+        end)
     end)
 
     test("Accepts an URI for connection parameters", function()
