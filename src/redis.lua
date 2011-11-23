@@ -18,6 +18,9 @@ local protocol = {
 }
 
 local lua_error = error
+local function default_error_fn(message, level)
+    lua_error(message, (level or 1) + 1)
+end
 
 local function merge_defaults(parameters)
     if parameters == nil then
@@ -680,7 +683,7 @@ local function connect_tcp(socket, parameters)
     local host, port = parameters.host, tonumber(parameters.port)
     local ok, err = socket:connect(host, port)
     if not ok then
-        client.error('could not connect to '..host..':'..port..' ['..err..']')
+        default_error_fn('could not connect to '..host..':'..port..' ['..err..']')
     end
     socket:setoption('tcp-nodelay', parameters.tcp_nodelay)
     return socket
@@ -689,7 +692,7 @@ end
 local function connect_unix(socket, parameters)
     local ok, err = socket:connect(parameters.path)
     if not ok then
-        client.error('could not connect to '..parameters.path..' ['..err..']')
+        default_error_fn('could not connect to '..parameters.path..' ['..err..']')
     end
     return socket
 end
@@ -740,9 +743,7 @@ function connect(...)
     local socket = create_connection(merge_defaults(parameters))
     local client = create_client(client_prototype, socket, commands)
     
-    client.error = function(message, level)
-        lua_error(message, (level or 1) + 1)
-    end
+    client.error = default_error_fn
 
     return client
 end
