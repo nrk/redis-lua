@@ -2,7 +2,7 @@ package.path = package.path .. ";../src/?.lua;src/?.lua"
 
 require "luarocks.require"
 require "telescope"
-require "redis"
+local redis = require "redis"
 
 local settings = {
     host     = '127.0.0.1',
@@ -130,19 +130,19 @@ local utils = {
             parameters = settings
         end
 
-        local redis = Redis.connect(parameters.host, parameters.port)
-        if parameters.password then redis:auth(parameters.password) end
-        if parameters.database then redis:select(parameters.database) end
-        redis:flushdb()
+        local client = redis.connect(parameters.host, parameters.port)
+        if parameters.password then client:auth(parameters.password) end
+        if parameters.database then client:select(parameters.database) end
+        client:flushdb()
 
-        local info = redis:info()
+        local info = client:info()
         local version = parse_version(info.redis_version or info.server.redis_version)
 
         if version:is('<', '1.2.0') then
             error("redis-lua does not support Redis < 1.2.0 (current: "..version.string..")")
         end
 
-        return redis, version
+        return client, version
     end,
     rpush_return = function(client, key, values, wipe)
         if wipe then client:del(key) end
@@ -217,94 +217,94 @@ end)
 
 context("Client initialization", function()
     test("Can connect successfully", function()
-        local redis = Redis.connect(settings.host, settings.port)
-        assert_type(redis, 'table')
-        assert_true(table.contains(table.keys(redis.network), 'socket'))
+        local client = redis.connect(settings.host, settings.port)
+        assert_type(client, 'table')
+        assert_true(table.contains(table.keys(client.network), 'socket'))
 
-        redis.network.socket:send("PING\r\n")
-        assert_equal(redis.network.socket:receive('*l'), '+PONG')
+        client.network.socket:send("PING\r\n")
+        assert_equal(client.network.socket:receive('*l'), '+PONG')
     end)
 
     test("Can handle connection failures", function()
         assert_error_message("could not connect to .*:%d+ %[connection refused%]", function()
-            Redis.connect(settings.host, settings.port + 100)
+            redis.connect(settings.host, settings.port + 100)
         end)
     end)
 
     test("Accepts an URI for connection parameters", function()
         local uri = 'redis://'..settings.host..':'..settings.port
-        local redis = Redis.connect(uri)
-        assert_type(redis, 'table')
+        local client = redis.connect(uri)
+        assert_type(client, 'table')
     end)
 
     test("Accepts a table for connection parameters", function()
-        local redis = Redis.connect(settings)
-        assert_type(redis, 'table')
+        local client = redis.connect(settings)
+        assert_type(client, 'table')
     end)
 end)
 
 context("Client features", function()
     before(function()
-        redis = utils.create_client(settings)
+        client = utils.create_client(settings)
     end)
 
     test("Send raw commands", function()
-        assert_equal(redis:raw_cmd("PING\r\n"), 'PONG')
-        assert_true(redis:raw_cmd("*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"))
-        assert_equal(redis:raw_cmd("GET foo\r\n"), 'bar')
+        assert_equal(client:raw_cmd("PING\r\n"), 'PONG')
+        assert_true(client:raw_cmd("*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"))
+        assert_equal(client:raw_cmd("GET foo\r\n"), 'bar')
     end)
 
     test("Create a new unbound command object", function()
-        local cmd = Redis.command('doesnotexist')
-        assert_nil(redis.doesnotexist)
-        assert_error(function() cmd(redis) end)
+        local cmd = redis.command('doesnotexist')
+        assert_nil(client.doesnotexist)
+        assert_error(function() cmd(client) end)
 
-        local cmd = Redis.command('ping', {
+        local cmd = redis.command('ping', {
             response = function(response) return response == 'PONG' end
         })
-        assert_equal(cmd(redis), true)
+        assert_equal(cmd(client), true)
     end)
 
     test("Define commands at module level", function()
-        Redis.define_command('doesnotexist')
-        local redis2 = utils.create_client(settings)
+        redis.define_command('doesnotexist')
+        local client2 = utils.create_client(settings)
 
-        Redis.undefine_command('doesnotexist')
-        local redis3 = utils.create_client(settings)
+        redis.undefine_command('doesnotexist')
+        local client3 = utils.create_client(settings)
 
-        assert_nil(redis.doesnotexist)
-        assert_not_nil(redis2.doesnotexist)
-        assert_nil(redis3.doesnotexist)
+        assert_nil(client.doesnotexist)
+        assert_not_nil(client2.doesnotexist)
+        assert_nil(client3.doesnotexist)
     end)
 
     test("Define new commands at client instance level", function()
-        redis:define_command('doesnotexist')
-        assert_not_nil(redis.doesnotexist)
-        assert_error(function() redis:doesnotexist() end)
+        client:define_command('doesnotexist')
+        assert_not_nil(client.doesnotexist)
+        assert_error(function() client:doesnotexist() end)
 
-        redis:undefine_command('doesnotexist')
-        assert_nil(redis.doesnotexist)
+        client:undefine_command('doesnotexist')
+        assert_nil(client.doesnotexist)
 
-        redis:define_command('ping')
-        assert_not_nil(redis.ping)
-        assert_equal(redis:ping(), 'PONG')
+        client:define_command('ping')
+        assert_not_nil(client.ping)
+        assert_equal(client:ping(), 'PONG')
 
-        redis:define_command('ping', {
-            request = redis.requests.multibulk
+        client:define_command('ping', {
+            request = client.requests.multibulk
         })
-        assert_not_nil(redis.ping)
-        assert_equal(redis:ping(), 'PONG')
+        assert_not_nil(client.ping)
+        assert_equal(client:ping(), 'PONG')
 
-        redis:define_command('ping', {
-            request  = redis.requests.multibulk,
+        client:define_command('ping', {
+            request  = client.requests.multibulk,
             response = function(reply) return reply == 'PONG' end
         })
-        assert_not_nil(redis.ping)
-        assert_true(redis:ping())
+        assert_not_nil(client.ping)
+        assert_true(client:ping())
     end)
 
     test("Pipelining commands", function()
-        local replies, count = redis:pipeline(function(p)
+        local replies, count = client:pipeline(function(p)
             p:ping()
             p:exists('counter')
             p:incrby('counter', 10)
@@ -328,257 +328,257 @@ context("Client features", function()
     end)
 
     after(function()
-        redis:quit()
+        client:quit()
     end)
 end)
 
 context("Redis commands", function()
     before(function()
-        redis, version = utils.create_client(settings)
+        client, version = utils.create_client(settings)
     end)
 
     after(function()
-        redis:quit()
+        client:quit()
     end)
 
     context("Connection related commands", function()
-        test("PING (redis:ping)", function()
-            assert_true(redis:ping())
+        test("PING (client:ping)", function()
+            assert_true(client:ping())
         end)
 
-        test("ECHO (redis:echo)", function()
+        test("ECHO (client:echo)", function()
             local str_ascii, str_utf8 = "Can you hear me?", "聞こえますか？"
 
-            assert_equal(redis:echo(str_ascii), str_ascii)
-            assert_equal(redis:echo(str_utf8), str_utf8)
+            assert_equal(client:echo(str_ascii), str_ascii)
+            assert_equal(client:echo(str_utf8), str_utf8)
         end)
 
-        test("SELECT (redis:select)", function()
+        test("SELECT (client:select)", function()
             if not settings.database then return end
 
-            assert_true(redis:select(0))
-            assert_true(redis:select(settings.database))
-            assert_error(function() redis:select(100) end)
-            assert_error(function() redis:select(-1) end)
+            assert_true(client:select(0))
+            assert_true(client:select(settings.database))
+            assert_error(function() client:select(100) end)
+            assert_error(function() client:select(-1) end)
         end)
     end)
 
     context("Commands operating on the key space", function()
-        test("KEYS (redis:keys)", function()
+        test("KEYS (client:keys)", function()
             local kvs_prefixed   = shared.kvs_ns_table()
             local kvs_unprefixed = { aaa = 1, aba = 2, aca = 3 }
             local kvs_all = table.merge(kvs_prefixed, kvs_unprefixed)
 
-            redis:mset(kvs_all)
+            client:mset(kvs_all)
 
-            assert_empty(redis:keys('nokeys:*'))
+            assert_empty(client:keys('nokeys:*'))
             assert_table_values(
-                table.values(redis:keys('*')),
+                table.values(client:keys('*')),
                 table.keys(kvs_all)
             )
             assert_table_values(
-                table.values(redis:keys('metavars:*')),
+                table.values(client:keys('metavars:*')),
                 table.keys(kvs_prefixed)
             )
             assert_table_values(
-                table.values(redis:keys('a?a')),
+                table.values(client:keys('a?a')),
                 table.keys(kvs_unprefixed)
             )
         end)
 
-        test("EXISTS (redis:exists)", function()
-            redis:set('foo', 'bar')
+        test("EXISTS (client:exists)", function()
+            client:set('foo', 'bar')
 
-            assert_true(redis:exists('foo'))
-            assert_false(redis:exists('hoge'))
+            assert_true(client:exists('foo'))
+            assert_false(client:exists('hoge'))
         end)
 
-        test("DEL (redis:del)", function()
-            redis:mset(shared.kvs_table())
+        test("DEL (client:del)", function()
+            client:mset(shared.kvs_table())
 
-            assert_equal(redis:del('doesnotexist'), 0)
-            assert_equal(redis:del('foofoo'), 1)
-            assert_equal(redis:del('foo', 'hoge', 'doesnotexist'), 2)
+            assert_equal(client:del('doesnotexist'), 0)
+            assert_equal(client:del('foofoo'), 1)
+            assert_equal(client:del('foo', 'hoge', 'doesnotexist'), 2)
         end)
 
-        test("TYPE (redis:type)", function()
-            assert_equal(redis:type('doesnotexist'), 'none')
+        test("TYPE (client:type)", function()
+            assert_equal(client:type('doesnotexist'), 'none')
 
-            redis:set('fooString', 'bar')
-            assert_equal(redis:type('fooString'), 'string')
+            client:set('fooString', 'bar')
+            assert_equal(client:type('fooString'), 'string')
 
-            redis:rpush('fooList', 'bar')
-            assert_equal(redis:type('fooList'), 'list')
+            client:rpush('fooList', 'bar')
+            assert_equal(client:type('fooList'), 'list')
 
-            redis:sadd('fooSet', 'bar')
-            assert_equal(redis:type('fooSet'), 'set')
+            client:sadd('fooSet', 'bar')
+            assert_equal(client:type('fooSet'), 'set')
 
-            redis:zadd('fooZSet', 0, 'bar')
-            assert_equal(redis:type('fooZSet'), 'zset')
+            client:zadd('fooZSet', 0, 'bar')
+            assert_equal(client:type('fooZSet'), 'zset')
 
             if version:is('>=', '2.0.0') then
-                redis:hset('fooHash', 'value', 'bar')
-                assert_equal('hash', redis:type('fooHash'))
+                client:hset('fooHash', 'value', 'bar')
+                assert_equal('hash', client:type('fooHash'))
             end
         end)
 
-        test("RANDOMKEY (redis:randomkey)", function()
+        test("RANDOMKEY (client:randomkey)", function()
             local kvs = shared.kvs_table()
 
-            assert_nil(redis:randomkey())
-            redis:mset(kvs)
-            assert_true(table.contains(table.keys(kvs), redis:randomkey()))
+            assert_nil(client:randomkey())
+            client:mset(kvs)
+            assert_true(table.contains(table.keys(kvs), client:randomkey()))
         end)
 
-        test("RENAME (redis:rename)", function()
+        test("RENAME (client:rename)", function()
             local kvs = shared.kvs_table()
-            redis:mset(kvs)
+            client:mset(kvs)
 
-            assert_true(redis:rename('hoge', 'hogehoge'))
-            assert_false(redis:exists('hoge'))
-            assert_equal(redis:get('hogehoge'), 'piyo')
+            assert_true(client:rename('hoge', 'hogehoge'))
+            assert_false(client:exists('hoge'))
+            assert_equal(client:get('hogehoge'), 'piyo')
 
             -- rename overwrites existing keys
-            assert_true(redis:rename('foo', 'foofoo'))
-            assert_false(redis:exists('foo'))
-            assert_equal(redis:get('foofoo'), 'bar')
+            assert_true(client:rename('foo', 'foofoo'))
+            assert_false(client:exists('foo'))
+            assert_equal(client:get('foofoo'), 'bar')
 
             -- rename fails when the key does not exist
             assert_error(function()
-                redis:rename('doesnotexist', 'fuga')
+                client:rename('doesnotexist', 'fuga')
             end)
         end)
 
-        test("RENAMENX (redis:renamenx)", function()
+        test("RENAMENX (client:renamenx)", function()
             local kvs = shared.kvs_table()
-            redis:mset(kvs)
+            client:mset(kvs)
 
-            assert_true(redis:renamenx('hoge', 'hogehoge'))
-            assert_false(redis:exists('hoge'))
-            assert_equal(redis:get('hogehoge'), 'piyo')
+            assert_true(client:renamenx('hoge', 'hogehoge'))
+            assert_false(client:exists('hoge'))
+            assert_equal(client:get('hogehoge'), 'piyo')
 
             -- rename overwrites existing keys
-            assert_false(redis:renamenx('foo', 'foofoo'))
-            assert_true(redis:exists('foo'))
+            assert_false(client:renamenx('foo', 'foofoo'))
+            assert_true(client:exists('foo'))
 
             -- rename fails when the key does not exist
             assert_error(function()
-                redis:renamenx('doesnotexist', 'fuga')
+                client:renamenx('doesnotexist', 'fuga')
             end)
         end)
 
-        test("TTL (redis:ttl)", function()
-            redis:set('foo', 'bar')
-            assert_equal(redis:ttl('foo'), -1)
+        test("TTL (client:ttl)", function()
+            client:set('foo', 'bar')
+            assert_equal(client:ttl('foo'), -1)
 
-            assert_true(redis:expire('foo', 5))
-            assert_lte(redis:ttl('foo'), 5)
+            assert_true(client:expire('foo', 5))
+            assert_lte(client:ttl('foo'), 5)
         end)
 
-        test("PTTL (redis:pttl)", function()
+        test("PTTL (client:pttl)", function()
             if version:is('<', '2.5.0') then return end
 
-            redis:set('foo', 'bar')
-            assert_equal(redis:pttl('foo'), -1)
+            client:set('foo', 'bar')
+            assert_equal(client:pttl('foo'), -1)
 
             local ttl = 5
-            assert_true(redis:expire('foo', ttl))
-            assert_lte(redis:pttl('foo'), 5 * 1000)
-            assert_gte(redis:pttl('foo'), 5 * 1000 - 500)
+            assert_true(client:expire('foo', ttl))
+            assert_lte(client:pttl('foo'), 5 * 1000)
+            assert_gte(client:pttl('foo'), 5 * 1000 - 500)
         end)
 
-        test("EXPIRE (redis:expire)", function()
-            redis:set('foo', 'bar')
-            assert_true(redis:expire('foo', 2))
-            assert_true(redis:exists('foo'))
-            assert_lte(redis:ttl('foo'), 2)
+        test("EXPIRE (client:expire)", function()
+            client:set('foo', 'bar')
+            assert_true(client:expire('foo', 2))
+            assert_true(client:exists('foo'))
+            assert_lte(client:ttl('foo'), 2)
             utils.sleep(3)
-            assert_false(redis:exists('foo'))
+            assert_false(client:exists('foo'))
 
-            redis:set('foo', 'bar')
-            assert_true(redis:expire('foo', 100))
+            client:set('foo', 'bar')
+            assert_true(client:expire('foo', 100))
             utils.sleep(3)
-            assert_lte(redis:ttl('foo'), 97)
+            assert_lte(client:ttl('foo'), 97)
 
-            assert_true(redis:expire('foo', -100))
-            assert_false(redis:exists('foo'))
+            assert_true(client:expire('foo', -100))
+            assert_false(client:exists('foo'))
         end)
 
-        test("PEXPIRE (redis:pexpire)", function()
+        test("PEXPIRE (client:pexpire)", function()
             if version:is('<', '2.5.0') then return end
 
             local ttl = 1
-            redis:set('foo', 'bar')
-            assert_true(redis:pexpire('foo', ttl * 1000))
-            assert_true(redis:exists('foo'))
-            assert_lte(redis:pttl('foo'), ttl * 1000)
-            assert_gte(redis:pttl('foo'), ttl * 1000 - 500)
+            client:set('foo', 'bar')
+            assert_true(client:pexpire('foo', ttl * 1000))
+            assert_true(client:exists('foo'))
+            assert_lte(client:pttl('foo'), ttl * 1000)
+            assert_gte(client:pttl('foo'), ttl * 1000 - 500)
             utils.sleep(ttl)
-            assert_false(redis:exists('foo'))
+            assert_false(client:exists('foo'))
         end)
 
-        test("EXPIREAT (redis:expireat)", function()
-            redis:set('foo', 'bar')
-            assert_true(redis:expireat('foo', os.time() + 2))
-            assert_lte(redis:ttl('foo'), 2)
+        test("EXPIREAT (client:expireat)", function()
+            client:set('foo', 'bar')
+            assert_true(client:expireat('foo', os.time() + 2))
+            assert_lte(client:ttl('foo'), 2)
             utils.sleep(3)
-            assert_false(redis:exists('foo'))
+            assert_false(client:exists('foo'))
 
-            redis:set('foo', 'bar')
-            assert_true(redis:expireat('foo', os.time() - 100))
-            assert_false(redis:exists('foo'))
+            client:set('foo', 'bar')
+            assert_true(client:expireat('foo', os.time() - 100))
+            assert_false(client:exists('foo'))
         end)
 
-        test("PEXPIREAT (redis:pexpireat)", function()
+        test("PEXPIREAT (client:pexpireat)", function()
             if version:is('<', '2.5.0') then return end
 
             local ttl = 2
-            redis:set('foo', 'bar')
-            assert_true(redis:pexpireat('foo', os.time() + ttl * 1000))
-            assert_lte(redis:pttl('foo'), ttl * 1000)
+            client:set('foo', 'bar')
+            assert_true(client:pexpireat('foo', os.time() + ttl * 1000))
+            assert_lte(client:pttl('foo'), ttl * 1000)
             utils.sleep(ttl + 1)
-            assert_false(redis:exists('foo'))
+            assert_false(client:exists('foo'))
 
-            redis:set('foo', 'bar')
-            assert_true(redis:pexpireat('foo', os.time() - 100 * 1000))
-            assert_false(redis:exists('foo'))
+            client:set('foo', 'bar')
+            assert_true(client:pexpireat('foo', os.time() - 100 * 1000))
+            assert_false(client:exists('foo'))
         end)
 
-        test("MOVE (redis:move)", function()
+        test("MOVE (client:move)", function()
             if not settings.database then return end
 
             local other_db = settings.database + 1
-            redis:set('foo', 'bar')
-            redis:select(other_db)
-            redis:flushdb()
-            redis:select(settings.database)
+            client:set('foo', 'bar')
+            client:select(other_db)
+            client:flushdb()
+            client:select(settings.database)
 
-            assert_true(redis:move('foo', other_db))
-            assert_false(redis:move('foo', other_db))
-            assert_false(redis:move('doesnotexist', other_db))
+            assert_true(client:move('foo', other_db))
+            assert_false(client:move('foo', other_db))
+            assert_false(client:move('doesnotexist', other_db))
 
-            redis:set('hoge', 'piyo')
-            assert_error(function() redis:move('hoge', 100) end)
+            client:set('hoge', 'piyo')
+            assert_error(function() client:move('hoge', 100) end)
         end)
 
-        test("DBSIZE (redis:dbsize)", function()
-            assert_equal(redis:dbsize(), 0)
-            redis:mset(shared.kvs_table())
-            assert_greater_than(redis:dbsize(), 0)
+        test("DBSIZE (client:dbsize)", function()
+            assert_equal(client:dbsize(), 0)
+            client:mset(shared.kvs_table())
+            assert_greater_than(client:dbsize(), 0)
         end)
 
-        test("PERSIST (redis:persist)", function()
+        test("PERSIST (client:persist)", function()
             if version:is('<', '2.1.0') then return end
 
-            redis:set('foo', 'bar')
+            client:set('foo', 'bar')
 
-            assert_true(redis:expire('foo', 1))
-            assert_equal(redis:ttl('foo'), 1)
-            assert_true(redis:persist('foo'))
-            assert_equal(redis:ttl('foo'), -1)
+            assert_true(client:expire('foo', 1))
+            assert_equal(client:ttl('foo'), 1)
+            assert_true(client:persist('foo'))
+            assert_equal(client:ttl('foo'), -1)
 
-            assert_false(redis:persist('foo'))
-            assert_false(redis:persist('foobar'))
+            assert_false(client:persist('foo'))
+            assert_false(client:persist('foobar'))
         end)
     end)
 
@@ -588,1048 +588,1048 @@ context("Redis commands", function()
         before(function()
             -- TODO: code duplication!
             list01, list01_values = "list01", { "4","2","3","5","1" }
-            for _,v in ipairs(list01_values) do redis:rpush(list01,v) end
+            for _,v in ipairs(list01_values) do client:rpush(list01,v) end
 
             list02, list02_values = "list02", { "1","10","2","20","3","30" }
-            for _,v in ipairs(list02_values) do redis:rpush(list02,v) end
+            for _,v in ipairs(list02_values) do client:rpush(list02,v) end
         end)
 
-        test("SORT (redis:sort)", function()
-            local sorted = redis:sort(list01)
+        test("SORT (client:sort)", function()
+            local sorted = client:sort(list01)
             assert_table_values(sorted, { "1","2","3","4","5" })
         end)
 
-        test("SORT (redis:sort) with parameter ASC/DESC", function()
-            assert_table_values(redis:sort(list01, { sort = 'asc'}),  { "1","2","3","4","5" })
-            assert_table_values(redis:sort(list01, { sort = 'desc'}), { "5","4","3","2","1" })
+        test("SORT (client:sort) with parameter ASC/DESC", function()
+            assert_table_values(client:sort(list01, { sort = 'asc'}),  { "1","2","3","4","5" })
+            assert_table_values(client:sort(list01, { sort = 'desc'}), { "5","4","3","2","1" })
         end)
 
-        test("SORT (redis:sort) with parameter LIMIT", function()
-            assert_table_values(redis:sort(list01, { limit = { 0,3 } }), { "1","2", "3" })
-            assert_table_values(redis:sort(list01, { limit = { 3,2 } }), { "4","5" })
+        test("SORT (client:sort) with parameter LIMIT", function()
+            assert_table_values(client:sort(list01, { limit = { 0,3 } }), { "1","2", "3" })
+            assert_table_values(client:sort(list01, { limit = { 3,2 } }), { "4","5" })
         end)
 
-        test("SORT (redis:sort) with parameter ALPHA", function()
-            assert_table_values(redis:sort(list02, { alpha = false }), { "1","2","3","10","20","30" })
-            assert_table_values(redis:sort(list02, { alpha = true }),  { "1","10","2","20","3","30" })
+        test("SORT (client:sort) with parameter ALPHA", function()
+            assert_table_values(client:sort(list02, { alpha = false }), { "1","2","3","10","20","30" })
+            assert_table_values(client:sort(list02, { alpha = true }),  { "1","10","2","20","3","30" })
         end)
 
-        test("SORT (redis:sort) with parameter GET", function()
-            redis:rpush('uids', 1003)
-            redis:rpush('uids', 1001)
-            redis:rpush('uids', 1002)
-            redis:rpush('uids', 1000)
+        test("SORT (client:sort) with parameter GET", function()
+            client:rpush('uids', 1003)
+            client:rpush('uids', 1001)
+            client:rpush('uids', 1002)
+            client:rpush('uids', 1000)
             local sortget = {
                 ['uid:1000'] = 'foo',  ['uid:1001'] = 'bar',
                 ['uid:1002'] = 'hoge', ['uid:1003'] = 'piyo',
             }
-            redis:mset(sortget)
+            client:mset(sortget)
 
-            assert_table_values(redis:sort('uids', { get = 'uid:*' }), table.values(sortget))
-            assert_table_values(redis:sort('uids', { get = { 'uid:*' } }), table.values(sortget))
+            assert_table_values(client:sort('uids', { get = 'uid:*' }), table.values(sortget))
+            assert_table_values(client:sort('uids', { get = { 'uid:*' } }), table.values(sortget))
         end)
 
-        test("SORT (redis:sort) with multiple parameters", function()
-            assert_table_values(redis:sort(list02, {
+        test("SORT (client:sort) with multiple parameters", function()
+            assert_table_values(client:sort(list02, {
                 alpha = false,
                 sort  = 'desc',
                 limit = { 1, 4 }
             }), { "20","10","3","2" })
         end)
 
-        test("SORT (redis:sort) with parameter STORE", function()
-            assert_equal(redis:sort(list01, { store = 'list01_ordered' }), 5)
-            assert_true(redis:exists('list01_ordered'))
+        test("SORT (client:sort) with parameter STORE", function()
+            assert_equal(client:sort(list01, { store = 'list01_ordered' }), 5)
+            assert_true(client:exists('list01_ordered'))
         end)
     end)
 
     context("Commands operating on string values", function()
-        test("SET (redis:set)", function()
-            assert_true(redis:set('foo', 'bar'))
-            assert_equal(redis:get('foo'), 'bar')
+        test("SET (client:set)", function()
+            assert_true(client:set('foo', 'bar'))
+            assert_equal(client:get('foo'), 'bar')
         end)
 
-        test("GET (redis:get)", function()
-            redis:set('foo', 'bar')
+        test("GET (client:get)", function()
+            client:set('foo', 'bar')
 
-            assert_equal(redis:get('foo'), 'bar')
-            assert_nil(redis:get('hoge'))
+            assert_equal(client:get('foo'), 'bar')
+            assert_nil(client:get('hoge'))
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:get('metavars')
+                client:rpush('metavars', 'foo')
+                client:get('metavars')
             end)
         end)
 
-        test("SETNX (redis:setnx)", function()
-            assert_true(redis:setnx('foo', 'bar'))
-            assert_false(redis:setnx('foo', 'baz'))
-            assert_equal(redis:get('foo'), 'bar')
+        test("SETNX (client:setnx)", function()
+            assert_true(client:setnx('foo', 'bar'))
+            assert_false(client:setnx('foo', 'baz'))
+            assert_equal(client:get('foo'), 'bar')
         end)
 
-        test("SETEX (redis:setex)", function()
+        test("SETEX (client:setex)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:setex('foo', 10, 'bar'))
-            assert_true(redis:exists('foo'))
-            assert_lte(redis:ttl('foo'), 10)
+            assert_true(client:setex('foo', 10, 'bar'))
+            assert_true(client:exists('foo'))
+            assert_lte(client:ttl('foo'), 10)
 
-            assert_true(redis:setex('hoge', 1, 'piyo'))
+            assert_true(client:setex('hoge', 1, 'piyo'))
             utils.sleep(2)
-            assert_false(redis:exists('hoge'))
+            assert_false(client:exists('hoge'))
 
-            assert_error(function() redis:setex('hoge', 2.5, 'piyo') end)
-            assert_error(function() redis:setex('hoge', 0, 'piyo') end)
-            assert_error(function() redis:setex('hoge', -10, 'piyo') end)
+            assert_error(function() client:setex('hoge', 2.5, 'piyo') end)
+            assert_error(function() client:setex('hoge', 0, 'piyo') end)
+            assert_error(function() client:setex('hoge', -10, 'piyo') end)
         end)
 
-        test("PSETEX (redis:psetex)", function()
+        test("PSETEX (client:psetex)", function()
             if version:is('<', '2.5.0') then return end
 
             local ttl = 10 * 1000
-            assert_true(redis:psetex('foo', ttl, 'bar'))
-            assert_true(redis:exists('foo'))
-            assert_lte(redis:pttl('foo'), ttl)
-            assert_gte(redis:pttl('foo'), ttl - 500)
+            assert_true(client:psetex('foo', ttl, 'bar'))
+            assert_true(client:exists('foo'))
+            assert_lte(client:pttl('foo'), ttl)
+            assert_gte(client:pttl('foo'), ttl - 500)
 
-            assert_true(redis:psetex('hoge', 1 * 1000, 'piyo'))
+            assert_true(client:psetex('hoge', 1 * 1000, 'piyo'))
             utils.sleep(2)
-            assert_false(redis:exists('hoge'))
+            assert_false(client:exists('hoge'))
 
-            assert_error(function() redis:psetex('hoge', 2.5, 'piyo') end)
-            assert_error(function() redis:psetex('hoge', 0, 'piyo') end)
-            assert_error(function() redis:psetex('hoge', -10, 'piyo') end)
+            assert_error(function() client:psetex('hoge', 2.5, 'piyo') end)
+            assert_error(function() client:psetex('hoge', 0, 'piyo') end)
+            assert_error(function() client:psetex('hoge', -10, 'piyo') end)
         end)
 
-        test("MSET (redis:mset)", function()
+        test("MSET (client:mset)", function()
             local kvs = shared.kvs_table()
 
-            assert_true(redis:mset(kvs))
+            assert_true(client:mset(kvs))
             for k,v in pairs(kvs) do
-                assert_equal(redis:get(k), v)
+                assert_equal(client:get(k), v)
             end
 
-            assert_true(redis:mset('a', '1', 'b', '2', 'c', '3'))
-            assert_equal(redis:get('a'), '1')
-            assert_equal(redis:get('b'), '2')
-            assert_equal(redis:get('c'), '3')
+            assert_true(client:mset('a', '1', 'b', '2', 'c', '3'))
+            assert_equal(client:get('a'), '1')
+            assert_equal(client:get('b'), '2')
+            assert_equal(client:get('c'), '3')
         end)
 
-        test("MSETNX (redis:msetnx)", function()
-           assert_true(redis:msetnx({ a = '1', b = '2' }))
-           assert_false(redis:msetnx({ c = '3', a = '100'}))
-           assert_equal(redis:get('a'), '1')
-           assert_equal(redis:get('b'), '2')
+        test("MSETNX (client:msetnx)", function()
+           assert_true(client:msetnx({ a = '1', b = '2' }))
+           assert_false(client:msetnx({ c = '3', a = '100'}))
+           assert_equal(client:get('a'), '1')
+           assert_equal(client:get('b'), '2')
         end)
 
-        test("MGET (redis:mget)", function()
+        test("MGET (client:mget)", function()
             local kvs = shared.kvs_table()
             local keys, values = table.keys(kvs), table.values(kvs)
 
-            assert_true(redis:mset(kvs))
-            assert_table_values(redis:mget(unpack(keys)), values)
+            assert_true(client:mset(kvs))
+            assert_table_values(client:mget(unpack(keys)), values)
         end)
 
-        test("GETSET (redis:getset)", function()
-            assert_nil(redis:getset('foo', 'bar'))
-            assert_equal(redis:getset('foo', 'barbar'), 'bar')
-            assert_equal(redis:getset('foo', 'baz'), 'barbar')
+        test("GETSET (client:getset)", function()
+            assert_nil(client:getset('foo', 'bar'))
+            assert_equal(client:getset('foo', 'barbar'), 'bar')
+            assert_equal(client:getset('foo', 'baz'), 'barbar')
         end)
 
-        test("INCR (redis:incr)", function()
-            assert_equal(redis:incr('foo'), 1)
-            assert_equal(redis:incr('foo'), 2)
+        test("INCR (client:incr)", function()
+            assert_equal(client:incr('foo'), 1)
+            assert_equal(client:incr('foo'), 2)
 
-            assert_true(redis:set('hoge', 'piyo'))
+            assert_true(client:set('hoge', 'piyo'))
 
             if version:is('<', '2.0.0') then
-                assert_equal(redis:incr('hoge'), 1)
+                assert_equal(client:incr('hoge'), 1)
             else
                 assert_error(function()
-                    redis:incr('hoge')
+                    client:incr('hoge')
                 end)
             end
         end)
 
-        test("INCRBY (redis:incrby)", function()
-            redis:set('foo', 2)
-            assert_equal(redis:incrby('foo', 20), 22)
-            assert_equal(redis:incrby('foo', -12), 10)
-            assert_equal(redis:incrby('foo', -110), -100)
+        test("INCRBY (client:incrby)", function()
+            client:set('foo', 2)
+            assert_equal(client:incrby('foo', 20), 22)
+            assert_equal(client:incrby('foo', -12), 10)
+            assert_equal(client:incrby('foo', -110), -100)
         end)
 
-        test("INCRBYFLOAT (redis:incrbyfloat)", function()
+        test("INCRBYFLOAT (client:incrbyfloat)", function()
             if version:is('<', '2.5.0') then return end
 
-            redis:set('foo', 2)
-            assert_equal(redis:incrbyfloat('foo', 20.123), 22.123)
-            assert_equal(redis:incrbyfloat('foo', -12.123), 10)
-            assert_equal(redis:incrbyfloat('foo', -110.01), -100.01)
+            client:set('foo', 2)
+            assert_equal(client:incrbyfloat('foo', 20.123), 22.123)
+            assert_equal(client:incrbyfloat('foo', -12.123), 10)
+            assert_equal(client:incrbyfloat('foo', -110.01), -100.01)
         end)
 
-        test("DECR (redis:decr)", function()
-            assert_equal(redis:decr('foo'), -1)
-            assert_equal(redis:decr('foo'), -2)
+        test("DECR (client:decr)", function()
+            assert_equal(client:decr('foo'), -1)
+            assert_equal(client:decr('foo'), -2)
 
-            assert_true(redis:set('hoge', 'piyo'))
+            assert_true(client:set('hoge', 'piyo'))
             if version:is('<', '2.0.0') then
-                assert_equal(redis:decr('hoge'), -1)
+                assert_equal(client:decr('hoge'), -1)
             else
                 assert_error(function()
-                    redis:decr('hoge')
+                    client:decr('hoge')
                 end)
             end
         end)
 
-        test("DECRBY (redis:decrby)", function()
-            redis:set('foo', -2)
-            assert_equal(redis:decrby('foo', 20), -22)
-            assert_equal(redis:decrby('foo', -12), -10)
-            assert_equal(redis:decrby('foo', -110), 100)
+        test("DECRBY (client:decrby)", function()
+            client:set('foo', -2)
+            assert_equal(client:decrby('foo', 20), -22)
+            assert_equal(client:decrby('foo', -12), -10)
+            assert_equal(client:decrby('foo', -110), 100)
         end)
 
-        test("APPEND (redis:append)", function()
+        test("APPEND (client:append)", function()
             if version:is('<', '2.0.0') then return end
 
-            redis:set('foo', 'bar')
-            assert_equal(redis:append('foo', '__'), 5)
-            assert_equal(redis:append('foo', 'bar'), 8)
-            assert_equal(redis:get('foo'), 'bar__bar')
+            client:set('foo', 'bar')
+            assert_equal(client:append('foo', '__'), 5)
+            assert_equal(client:append('foo', 'bar'), 8)
+            assert_equal(client:get('foo'), 'bar__bar')
 
-            assert_equal(redis:append('hoge', 'piyo'), 4)
-            assert_equal(redis:get('hoge'), 'piyo')
+            assert_equal(client:append('hoge', 'piyo'), 4)
+            assert_equal(client:get('hoge'), 'piyo')
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:append('metavars', 'bar')
+                client:rpush('metavars', 'foo')
+                client:append('metavars', 'bar')
             end)
         end)
 
-        test("SUBSTR (redis:substr)", function()
+        test("SUBSTR (client:substr)", function()
             if version:is('<', '2.0.0') then return end
 
-            redis:set('var', 'foobar')
-            assert_equal(redis:substr('var', 0, 2), 'foo')
-            assert_equal(redis:substr('var', 3, 5), 'bar')
-            assert_equal(redis:substr('var', -3, -1), 'bar')
+            client:set('var', 'foobar')
+            assert_equal(client:substr('var', 0, 2), 'foo')
+            assert_equal(client:substr('var', 3, 5), 'bar')
+            assert_equal(client:substr('var', -3, -1), 'bar')
 
-            assert_equal(redis:substr('var', 5, 0), '')
+            assert_equal(client:substr('var', 5, 0), '')
 
-            redis:set('numeric', 123456789)
-            assert_equal(redis:substr('numeric', 0, 4), '12345')
+            client:set('numeric', 123456789)
+            assert_equal(client:substr('numeric', 0, 4), '12345')
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:substr('metavars', 0, 3)
+                client:rpush('metavars', 'foo')
+                client:substr('metavars', 0, 3)
             end)
         end)
 
-        test("STRLEN (redis:strlen)", function()
+        test("STRLEN (client:strlen)", function()
             if version:is('<', '2.1.0') then return end
 
-            redis:set('var', 'foobar')
-            assert_equal(redis:strlen('var'), 6)
-            assert_equal(redis:append('var', '___'), 9)
-            assert_equal(redis:strlen('var'), 9)
+            client:set('var', 'foobar')
+            assert_equal(client:strlen('var'), 6)
+            assert_equal(client:append('var', '___'), 9)
+            assert_equal(client:strlen('var'), 9)
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                qredis:strlen('metavars')
+                client:rpush('metavars', 'foo')
+                qclient:strlen('metavars')
             end)
         end)
 
-        test("SETRANGE (redis:setrange)", function()
+        test("SETRANGE (client:setrange)", function()
             if version:is('<', '2.1.0') then return end
 
-            assert_equal(redis:setrange('var', 0, 'foobar'), 6)
-            assert_equal(redis:get('var'), 'foobar')
-            assert_equal(redis:setrange('var', 3, 'foo'), 6)
-            assert_equal(redis:get('var'), 'foofoo')
-            assert_equal(redis:setrange('var', 10, 'barbar'), 16)
-            assert_equal(redis:get('var'), "foofoo\0\0\0\0barbar")
+            assert_equal(client:setrange('var', 0, 'foobar'), 6)
+            assert_equal(client:get('var'), 'foobar')
+            assert_equal(client:setrange('var', 3, 'foo'), 6)
+            assert_equal(client:get('var'), 'foofoo')
+            assert_equal(client:setrange('var', 10, 'barbar'), 16)
+            assert_equal(client:get('var'), "foofoo\0\0\0\0barbar")
 
             assert_error(function()
-                redis:setrange('var', -1, 'bogus')
+                client:setrange('var', -1, 'bogus')
             end)
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:setrange('metavars', 0, 'hoge')
+                client:rpush('metavars', 'foo')
+                client:setrange('metavars', 0, 'hoge')
             end)
         end)
 
-        test("GETRANGE (redis:getrange)", function()
+        test("GETRANGE (client:getrange)", function()
             if version:is('<', '2.1.0') then return end
 
-            redis:set('var', 'foobar')
-            assert_equal(redis:getrange('var', 0, 2), 'foo')
-            assert_equal(redis:getrange('var', 3, 5), 'bar')
-            assert_equal(redis:getrange('var', -3, -1), 'bar')
+            client:set('var', 'foobar')
+            assert_equal(client:getrange('var', 0, 2), 'foo')
+            assert_equal(client:getrange('var', 3, 5), 'bar')
+            assert_equal(client:getrange('var', -3, -1), 'bar')
 
-            assert_equal(redis:substr('var', 5, 0), '')
+            assert_equal(client:substr('var', 5, 0), '')
 
-            redis:set('numeric', 123456789)
-            assert_equal(redis:getrange('numeric', 0, 4), '12345')
+            client:set('numeric', 123456789)
+            assert_equal(client:getrange('numeric', 0, 4), '12345')
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:getrange('metavars', 0, 3)
+                client:rpush('metavars', 'foo')
+                client:getrange('metavars', 0, 3)
             end)
         end)
 
-        test("SETBIT (redis:setbit)", function()
+        test("SETBIT (client:setbit)", function()
             if version:is('<', '2.1.0') then return end
 
-            assert_equal(redis:setbit('binary', 31, 1), 0)
-            assert_equal(redis:setbit('binary', 0, 1), 0)
-            assert_equal(redis:strlen('binary'), 4)
-            assert_equal(redis:get('binary'), "\128\0\0\1")
+            assert_equal(client:setbit('binary', 31, 1), 0)
+            assert_equal(client:setbit('binary', 0, 1), 0)
+            assert_equal(client:strlen('binary'), 4)
+            assert_equal(client:get('binary'), "\128\0\0\1")
 
-            assert_equal(redis:setbit('binary', 0, 0), 1)
-            assert_equal(redis:setbit('binary', 0, 0), 0)
-            assert_equal(redis:get('binary'), "\0\0\0\1")
+            assert_equal(client:setbit('binary', 0, 0), 1)
+            assert_equal(client:setbit('binary', 0, 0), 0)
+            assert_equal(client:get('binary'), "\0\0\0\1")
 
             assert_error(function()
-              redis:setbit('binary', -1, 1)
+              client:setbit('binary', -1, 1)
             end)
 
             assert_error(function()
-                redis:setbit('binary', 'invalid', 1)
+                client:setbit('binary', 'invalid', 1)
             end)
 
             assert_error(function()
-                redis:setbit('binary', 'invalid', 1)
+                client:setbit('binary', 'invalid', 1)
             end)
 
             assert_error(function()
-                redis:setbit('binary', 15, 255)
+                client:setbit('binary', 15, 255)
             end)
 
             assert_error(function()
-                redis:setbit('binary', 15, 'invalid')
+                client:setbit('binary', 15, 'invalid')
             end)
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:setbit('metavars', 0, 1)
+                client:rpush('metavars', 'foo')
+                client:setbit('metavars', 0, 1)
             end)
         end)
 
-        test("GETBIT (redis:getbit)", function()
+        test("GETBIT (client:getbit)", function()
             if version:is('<', '2.1.0') then return end
 
-            redis:set('binary', "\128\0\0\1")
+            client:set('binary', "\128\0\0\1")
 
-            assert_equal(redis:getbit('binary', 0), 1)
-            assert_equal(redis:getbit('binary', 15), 0)
-            assert_equal(redis:getbit('binary', 31), 1)
-            assert_equal(redis:getbit('binary', 63), 0)
+            assert_equal(client:getbit('binary', 0), 1)
+            assert_equal(client:getbit('binary', 15), 0)
+            assert_equal(client:getbit('binary', 31), 1)
+            assert_equal(client:getbit('binary', 63), 0)
 
             assert_error(function()
-              redis:getbit('binary', -1)
+              client:getbit('binary', -1)
             end)
 
             assert_error(function()
-              redis:getbit('binary', 'invalid')
+              client:getbit('binary', 'invalid')
             end)
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:getbit('metavars', 0)
+                client:rpush('metavars', 'foo')
+                client:getbit('metavars', 0)
             end)
         end)
     end)
 
     context("Commands operating on lists", function()
-        test("RPUSH (redis:rpush)", function()
+        test("RPUSH (client:rpush)", function()
             if version:is('<', '2.0.0') then
-                assert_true(redis:rpush('metavars', 'foo'))
-                assert_true(redis:rpush('metavars', 'hoge'))
+                assert_true(client:rpush('metavars', 'foo'))
+                assert_true(client:rpush('metavars', 'hoge'))
             else
-                assert_equal(redis:rpush('metavars', 'foo'), 1)
-                assert_equal(redis:rpush('metavars', 'hoge'), 2)
+                assert_equal(client:rpush('metavars', 'foo'), 1)
+                assert_equal(client:rpush('metavars', 'hoge'), 2)
             end
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:rpush('foo', 'baz')
+                client:set('foo', 'bar')
+                client:rpush('foo', 'baz')
             end)
         end)
 
-        test("RPUSHX (redis:rpushx)", function()
+        test("RPUSHX (client:rpushx)", function()
             if version:is('<', '2.1.0') then return end
 
-            assert_equal(redis:rpushx('numbers', 1), 0)
-            assert_equal(redis:rpush('numbers', 2), 1)
-            assert_equal(redis:rpushx('numbers', 3), 2)
-            assert_equal(redis:llen('numbers'), 2)
-            assert_table_values(redis:lrange('numbers', 0, -1), { '2', '3' })
+            assert_equal(client:rpushx('numbers', 1), 0)
+            assert_equal(client:rpush('numbers', 2), 1)
+            assert_equal(client:rpushx('numbers', 3), 2)
+            assert_equal(client:llen('numbers'), 2)
+            assert_table_values(client:lrange('numbers', 0, -1), { '2', '3' })
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:rpushx('foo', 'baz')
+                client:set('foo', 'bar')
+                client:rpushx('foo', 'baz')
             end)
         end)
 
-        test("LPUSH (redis:lpush)", function()
+        test("LPUSH (client:lpush)", function()
             if version:is('<', '2.0.0') then
-                assert_true(redis:lpush('metavars', 'foo'))
-                assert_true(redis:lpush('metavars', 'hoge'))
+                assert_true(client:lpush('metavars', 'foo'))
+                assert_true(client:lpush('metavars', 'hoge'))
             else
-                assert_equal(redis:lpush('metavars', 'foo'), 1)
-                assert_equal(redis:lpush('metavars', 'hoge'), 2)
+                assert_equal(client:lpush('metavars', 'foo'), 1)
+                assert_equal(client:lpush('metavars', 'hoge'), 2)
             end
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:lpush('foo', 'baz')
+                client:set('foo', 'bar')
+                client:lpush('foo', 'baz')
             end)
         end)
 
-        test("LPUSHX (redis:lpushx)", function()
+        test("LPUSHX (client:lpushx)", function()
             if version:is('<', '2.1.0') then return end
 
-            assert_equal(redis:lpushx('numbers', 1), 0)
-            assert_equal(redis:lpush('numbers', 2), 1)
-            assert_equal(redis:lpushx('numbers', 3), 2)
+            assert_equal(client:lpushx('numbers', 1), 0)
+            assert_equal(client:lpush('numbers', 2), 1)
+            assert_equal(client:lpushx('numbers', 3), 2)
 
-            assert_equal(redis:llen('numbers'), 2)
-            assert_table_values(redis:lrange('numbers', 0, -1), { '3', '2' })
+            assert_equal(client:llen('numbers'), 2)
+            assert_table_values(client:lrange('numbers', 0, -1), { '3', '2' })
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:lpushx('foo', 'baz')
+                client:set('foo', 'bar')
+                client:lpushx('foo', 'baz')
             end)
         end)
 
-        test("LLEN (redis:llen)", function()
+        test("LLEN (client:llen)", function()
             local kvs = shared.kvs_table()
             for _, v in pairs(kvs) do
-                redis:rpush('metavars', v)
+                client:rpush('metavars', v)
             end
 
-            assert_equal(redis:llen('metavars'), 3)
-            assert_equal(redis:llen('doesnotexist'), 0)
+            assert_equal(client:llen('metavars'), 3)
+            assert_equal(client:llen('doesnotexist'), 0)
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:llen('foo')
+                client:set('foo', 'bar')
+                client:llen('foo')
             end)
         end)
 
-        test("LRANGE (redis:lrange)", function()
-            local numbers = utils.rpush_return(redis, 'numbers', shared.numbers())
+        test("LRANGE (client:lrange)", function()
+            local numbers = utils.rpush_return(client, 'numbers', shared.numbers())
 
-            assert_table_values(redis:lrange('numbers', 0, 3), table.slice(numbers, 1, 4))
-            assert_table_values(redis:lrange('numbers', 4, 8), table.slice(numbers, 5, 5))
-            assert_table_values(redis:lrange('numbers', 0, 0), table.slice(numbers, 1, 1))
-            assert_empty(redis:lrange('numbers', 1, 0))
-            assert_table_values(redis:lrange('numbers', 0, -1), numbers)
-            assert_table_values(redis:lrange('numbers', 5, -5), { '5' })
-            assert_empty(redis:lrange('numbers', 7, -5))
-            assert_table_values(redis:lrange('numbers', -5, -2), table.slice(numbers, 6, 4))
-            assert_table_values(redis:lrange('numbers', -100, 100), numbers)
+            assert_table_values(client:lrange('numbers', 0, 3), table.slice(numbers, 1, 4))
+            assert_table_values(client:lrange('numbers', 4, 8), table.slice(numbers, 5, 5))
+            assert_table_values(client:lrange('numbers', 0, 0), table.slice(numbers, 1, 1))
+            assert_empty(client:lrange('numbers', 1, 0))
+            assert_table_values(client:lrange('numbers', 0, -1), numbers)
+            assert_table_values(client:lrange('numbers', 5, -5), { '5' })
+            assert_empty(client:lrange('numbers', 7, -5))
+            assert_table_values(client:lrange('numbers', -5, -2), table.slice(numbers, 6, 4))
+            assert_table_values(client:lrange('numbers', -100, 100), numbers)
         end)
 
-        test("LTRIM (redis:ltrim)", function()
-            local numbers = utils.rpush_return(redis, 'numbers', shared.numbers(), true)
-            assert_true(redis:ltrim('numbers', 0, 2))
-            assert_table_values(redis:lrange('numbers', 0, -1), table.slice(numbers, 1, 3))
+        test("LTRIM (client:ltrim)", function()
+            local numbers = utils.rpush_return(client, 'numbers', shared.numbers(), true)
+            assert_true(client:ltrim('numbers', 0, 2))
+            assert_table_values(client:lrange('numbers', 0, -1), table.slice(numbers, 1, 3))
 
-            local numbers = utils.rpush_return(redis, 'numbers', shared.numbers(), true)
-            assert_true(redis:ltrim('numbers', 5, 9))
-            assert_table_values(redis:lrange('numbers', 0, -1), table.slice(numbers, 6, 5))
+            local numbers = utils.rpush_return(client, 'numbers', shared.numbers(), true)
+            assert_true(client:ltrim('numbers', 5, 9))
+            assert_table_values(client:lrange('numbers', 0, -1), table.slice(numbers, 6, 5))
 
-            local numbers = utils.rpush_return(redis, 'numbers', shared.numbers(), true)
-            assert_true(redis:ltrim('numbers', 0, -6))
-            assert_table_values(redis:lrange('numbers', 0, -1), table.slice(numbers, 1, 5))
+            local numbers = utils.rpush_return(client, 'numbers', shared.numbers(), true)
+            assert_true(client:ltrim('numbers', 0, -6))
+            assert_table_values(client:lrange('numbers', 0, -1), table.slice(numbers, 1, 5))
 
-            local numbers = utils.rpush_return(redis, 'numbers', shared.numbers(), true)
-            assert_true(redis:ltrim('numbers', -5, -3))
-            assert_table_values(redis:lrange('numbers', 0, -1), table.slice(numbers, 6, 3))
+            local numbers = utils.rpush_return(client, 'numbers', shared.numbers(), true)
+            assert_true(client:ltrim('numbers', -5, -3))
+            assert_table_values(client:lrange('numbers', 0, -1), table.slice(numbers, 6, 3))
 
-            local numbers = utils.rpush_return(redis, 'numbers', shared.numbers(), true)
-            assert_true(redis:ltrim('numbers', -100, 100))
-            assert_table_values(redis:lrange('numbers', 0, -1), numbers)
+            local numbers = utils.rpush_return(client, 'numbers', shared.numbers(), true)
+            assert_true(client:ltrim('numbers', -100, 100))
+            assert_table_values(client:lrange('numbers', 0, -1), numbers)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:ltrim('foo', 0, 1)
+                client:set('foo', 'bar')
+                client:ltrim('foo', 0, 1)
             end)
         end)
 
-        test("LINDEX (redis:lindex)", function()
-            local numbers = utils.rpush_return(redis, 'numbers', shared.numbers())
+        test("LINDEX (client:lindex)", function()
+            local numbers = utils.rpush_return(client, 'numbers', shared.numbers())
 
-            assert_equal(redis:lindex('numbers', 0), numbers[1])
-            assert_equal(redis:lindex('numbers', 5), numbers[6])
-            assert_equal(redis:lindex('numbers', 9), numbers[10])
-            assert_nil(redis:lindex('numbers', 100))
+            assert_equal(client:lindex('numbers', 0), numbers[1])
+            assert_equal(client:lindex('numbers', 5), numbers[6])
+            assert_equal(client:lindex('numbers', 9), numbers[10])
+            assert_nil(client:lindex('numbers', 100))
 
-            assert_equal(redis:lindex('numbers', -0), numbers[1])
-            assert_equal(redis:lindex('numbers', -1), numbers[10])
-            assert_equal(redis:lindex('numbers', -3), numbers[8])
-            assert_nil(redis:lindex('numbers', -100))
+            assert_equal(client:lindex('numbers', -0), numbers[1])
+            assert_equal(client:lindex('numbers', -1), numbers[10])
+            assert_equal(client:lindex('numbers', -3), numbers[8])
+            assert_nil(client:lindex('numbers', -100))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:lindex('foo', 0)
+                client:set('foo', 'bar')
+                client:lindex('foo', 0)
             end)
         end)
 
-        test("LSET (redis:lset)", function()
-            utils.rpush_return(redis, 'numbers', shared.numbers())
+        test("LSET (client:lset)", function()
+            utils.rpush_return(client, 'numbers', shared.numbers())
 
-            assert_true(redis:lset('numbers', 5, -5))
-            assert_equal(redis:lindex('numbers', 5), '-5')
+            assert_true(client:lset('numbers', 5, -5))
+            assert_equal(client:lindex('numbers', 5), '-5')
 
             assert_error(function()
-                redis:lset('numbers', 99, 99)
+                client:lset('numbers', 99, 99)
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:lset('foo', 0, 0)
+                client:set('foo', 'bar')
+                client:lset('foo', 0, 0)
             end)
         end)
 
-        test("LREM (redis:lrem)", function()
+        test("LREM (client:lrem)", function()
             local mixed = { '0', '_', '2', '_', '4', '_', '6', '_' }
 
-            utils.rpush_return(redis, 'mixed', mixed, true)
-            assert_equal(redis:lrem('mixed', 2, '_'), 2)
-            assert_table_values(redis:lrange('mixed', 0, -1), { '0', '2', '4', '_', '6', '_' })
+            utils.rpush_return(client, 'mixed', mixed, true)
+            assert_equal(client:lrem('mixed', 2, '_'), 2)
+            assert_table_values(client:lrange('mixed', 0, -1), { '0', '2', '4', '_', '6', '_' })
 
-            utils.rpush_return(redis, 'mixed', mixed, true)
-            assert_equal(redis:lrem('mixed', 0, '_'), 4)
-            assert_table_values(redis:lrange('mixed', 0, -1), { '0', '2', '4', '6' })
+            utils.rpush_return(client, 'mixed', mixed, true)
+            assert_equal(client:lrem('mixed', 0, '_'), 4)
+            assert_table_values(client:lrange('mixed', 0, -1), { '0', '2', '4', '6' })
 
-            utils.rpush_return(redis, 'mixed', mixed, true)
-            assert_equal(redis:lrem('mixed', -2, '_'), 2)
-            assert_table_values(redis:lrange('mixed', 0, -1), { '0', '_', '2', '_', '4', '6' })
+            utils.rpush_return(client, 'mixed', mixed, true)
+            assert_equal(client:lrem('mixed', -2, '_'), 2)
+            assert_table_values(client:lrange('mixed', 0, -1), { '0', '_', '2', '_', '4', '6' })
 
-            utils.rpush_return(redis, 'mixed', mixed, true)
-            assert_equal(redis:lrem('mixed', 2, '|'), 0)
-            assert_table_values(redis:lrange('mixed', 0, -1), mixed)
+            utils.rpush_return(client, 'mixed', mixed, true)
+            assert_equal(client:lrem('mixed', 2, '|'), 0)
+            assert_table_values(client:lrange('mixed', 0, -1), mixed)
 
-            assert_equal(redis:lrem('doesnotexist', 2, '_'), 0)
+            assert_equal(client:lrem('doesnotexist', 2, '_'), 0)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:lrem('foo', 0, 0)
+                client:set('foo', 'bar')
+                client:lrem('foo', 0, 0)
             end)
         end)
 
-        test("LPOP (redis:lpop)", function()
-            local numbers = utils.rpush_return(redis, 'numbers', { '0', '1', '2', '3', '4' })
+        test("LPOP (client:lpop)", function()
+            local numbers = utils.rpush_return(client, 'numbers', { '0', '1', '2', '3', '4' })
 
-            assert_equal(redis:lpop('numbers'), numbers[1])
-            assert_equal(redis:lpop('numbers'), numbers[2])
-            assert_equal(redis:lpop('numbers'), numbers[3])
+            assert_equal(client:lpop('numbers'), numbers[1])
+            assert_equal(client:lpop('numbers'), numbers[2])
+            assert_equal(client:lpop('numbers'), numbers[3])
 
-            assert_table_values(redis:lrange('numbers', 0, -1), { '3', '4' })
+            assert_table_values(client:lrange('numbers', 0, -1), { '3', '4' })
 
-            redis:lpop('numbers')
-            redis:lpop('numbers')
-            assert_nil(redis:lpop('numbers'))
+            client:lpop('numbers')
+            client:lpop('numbers')
+            assert_nil(client:lpop('numbers'))
 
-            assert_nil(redis:lpop('doesnotexist'))
+            assert_nil(client:lpop('doesnotexist'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:lpop('foo')
+                client:set('foo', 'bar')
+                client:lpop('foo')
             end)
         end)
 
-        test("RPOP (redis:rpop)", function()
-            local numbers = utils.rpush_return(redis, 'numbers', { '0', '1', '2', '3', '4' })
+        test("RPOP (client:rpop)", function()
+            local numbers = utils.rpush_return(client, 'numbers', { '0', '1', '2', '3', '4' })
 
-            assert_equal(redis:rpop('numbers'), numbers[5])
-            assert_equal(redis:rpop('numbers'), numbers[4])
-            assert_equal(redis:rpop('numbers'), numbers[3])
+            assert_equal(client:rpop('numbers'), numbers[5])
+            assert_equal(client:rpop('numbers'), numbers[4])
+            assert_equal(client:rpop('numbers'), numbers[3])
 
-            assert_table_values(redis:lrange('numbers', 0, -1), { '0', '1' })
+            assert_table_values(client:lrange('numbers', 0, -1), { '0', '1' })
 
-            redis:rpop('numbers')
-            redis:rpop('numbers')
-            assert_nil(redis:rpop('numbers'))
+            client:rpop('numbers')
+            client:rpop('numbers')
+            assert_nil(client:rpop('numbers'))
 
-            assert_nil(redis:rpop('doesnotexist'))
+            assert_nil(client:rpop('doesnotexist'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:rpop('foo')
+                client:set('foo', 'bar')
+                client:rpop('foo')
             end)
         end)
 
-        test("RPOPLPUSH (redis:rpoplpush)", function()
-            local numbers = utils.rpush_return(redis, 'numbers', { '0', '1', '2' }, true)
-            assert_equal(redis:llen('temporary'), 0)
-            assert_equal(redis:rpoplpush('numbers', 'temporary'), '2')
-            assert_equal(redis:rpoplpush('numbers', 'temporary'), '1')
-            assert_equal(redis:rpoplpush('numbers', 'temporary'), '0')
-            assert_equal(redis:llen('numbers'), 0)
-            assert_equal(redis:llen('temporary'), 3)
+        test("RPOPLPUSH (client:rpoplpush)", function()
+            local numbers = utils.rpush_return(client, 'numbers', { '0', '1', '2' }, true)
+            assert_equal(client:llen('temporary'), 0)
+            assert_equal(client:rpoplpush('numbers', 'temporary'), '2')
+            assert_equal(client:rpoplpush('numbers', 'temporary'), '1')
+            assert_equal(client:rpoplpush('numbers', 'temporary'), '0')
+            assert_equal(client:llen('numbers'), 0)
+            assert_equal(client:llen('temporary'), 3)
 
-            local numbers = utils.rpush_return(redis, 'numbers', { '0', '1', '2' }, true)
-            redis:rpoplpush('numbers', 'numbers')
-            redis:rpoplpush('numbers', 'numbers')
-            redis:rpoplpush('numbers', 'numbers')
-            assert_table_values(redis:lrange('numbers', 0, -1), numbers)
+            local numbers = utils.rpush_return(client, 'numbers', { '0', '1', '2' }, true)
+            client:rpoplpush('numbers', 'numbers')
+            client:rpoplpush('numbers', 'numbers')
+            client:rpoplpush('numbers', 'numbers')
+            assert_table_values(client:lrange('numbers', 0, -1), numbers)
 
-            assert_nil(redis:rpoplpush('doesnotexist1', 'doesnotexist2'))
+            assert_nil(client:rpoplpush('doesnotexist1', 'doesnotexist2'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:rpoplpush('foo', 'hoge')
+                client:set('foo', 'bar')
+                client:rpoplpush('foo', 'hoge')
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:rpoplpush('temporary', 'foo')
+                client:set('foo', 'bar')
+                client:rpoplpush('temporary', 'foo')
             end)
         end)
 
-        test("BLPOP (redis:blpop)", function()
+        test("BLPOP (client:blpop)", function()
             if version:is('<', '2.0.0') then return end
             -- TODO: implement tests
         end)
 
-        test("BRPOP (redis:brpop)", function()
+        test("BRPOP (client:brpop)", function()
             if version:is('<', '2.0.0') then return end
             -- TODO: implement tests
         end)
 
-        test("BRPOPLPUSH (redis:brpoplpush)", function()
+        test("BRPOPLPUSH (client:brpoplpush)", function()
             if version:is('<', '2.1.0') then return end
             -- TODO: implement tests
         end)
 
-        test("LINSERT (redis:linsert)", function()
+        test("LINSERT (client:linsert)", function()
             if version:is('<', '2.1.0') then return end
 
-            utils.rpush_return(redis, 'numbers', shared.numbers(), true)
+            utils.rpush_return(client, 'numbers', shared.numbers(), true)
 
-            assert_equal(redis:linsert('numbers', 'before', 0, -2), 11)
-            assert_equal(redis:linsert('numbers', 'after', -2, -1), 12)
-            assert_table_values(redis:lrange('numbers', 0, 3), { '-2', '-1', '0', '1' });
+            assert_equal(client:linsert('numbers', 'before', 0, -2), 11)
+            assert_equal(client:linsert('numbers', 'after', -2, -1), 12)
+            assert_table_values(client:lrange('numbers', 0, 3), { '-2', '-1', '0', '1' });
 
-            assert_equal(redis:linsert('numbers', 'before', 100, 200), -1)
-            assert_equal(redis:linsert('numbers', 'after', 100, 50), -1)
+            assert_equal(client:linsert('numbers', 'before', 100, 200), -1)
+            assert_equal(client:linsert('numbers', 'after', 100, 50), -1)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:linsert('foo', 0, 0)
+                client:set('foo', 'bar')
+                client:linsert('foo', 0, 0)
             end)
         end)
     end)
 
     context("Commands operating on sets", function()
-        test("SADD (redis:sadd)", function()
-            assert_true(redis:sadd('set', 0))
-            assert_true(redis:sadd('set', 1))
-            assert_false(redis:sadd('set', 0))
+        test("SADD (client:sadd)", function()
+            assert_true(client:sadd('set', 0))
+            assert_true(client:sadd('set', 1))
+            assert_false(client:sadd('set', 0))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sadd('foo', 0)
+                client:set('foo', 'bar')
+                client:sadd('foo', 0)
             end)
         end)
 
-        test("SREM (redis:srem)", function()
-            utils.sadd_return(redis, 'set', { '0', '1', '2', '3', '4' })
+        test("SREM (client:srem)", function()
+            utils.sadd_return(client, 'set', { '0', '1', '2', '3', '4' })
 
-            assert_true(redis:srem('set', 0))
-            assert_true(redis:srem('set', 4))
-            assert_false(redis:srem('set', 10))
+            assert_true(client:srem('set', 0))
+            assert_true(client:srem('set', 4))
+            assert_false(client:srem('set', 10))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:srem('foo', 0)
+                client:set('foo', 'bar')
+                client:srem('foo', 0)
             end)
         end)
 
-        test("SPOP (redis:spop)", function()
-            local set = utils.sadd_return(redis, 'set', { '0', '1', '2', '3', '4' })
+        test("SPOP (client:spop)", function()
+            local set = utils.sadd_return(client, 'set', { '0', '1', '2', '3', '4' })
 
-            assert_true(table.contains(set, redis:spop('set')))
-            assert_nil(redis:spop('doesnotexist'))
+            assert_true(table.contains(set, client:spop('set')))
+            assert_nil(client:spop('doesnotexist'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:spop('foo')
+                client:set('foo', 'bar')
+                client:spop('foo')
             end)
         end)
 
-        test("SMOVE (redis:smove)", function()
-            utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5' })
-            utils.sadd_return(redis, 'setB', { '5', '6', '7', '8', '9', '10' })
+        test("SMOVE (client:smove)", function()
+            utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5' })
+            utils.sadd_return(client, 'setB', { '5', '6', '7', '8', '9', '10' })
 
-            assert_true(redis:smove('setA', 'setB', 0))
-            assert_false(redis:srem('setA', 0))
-            assert_true(redis:srem('setB', 0))
+            assert_true(client:smove('setA', 'setB', 0))
+            assert_false(client:srem('setA', 0))
+            assert_true(client:srem('setB', 0))
 
-            assert_true(redis:smove('setA', 'setB', 5))
-            assert_false(redis:smove('setA', 'setB', 100))
+            assert_true(client:smove('setA', 'setB', 5))
+            assert_false(client:smove('setA', 'setB', 100))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:smove('foo', 'setB', 5)
+                client:set('foo', 'bar')
+                client:smove('foo', 'setB', 5)
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:smove('setA', 'foo', 5)
+                client:set('foo', 'bar')
+                client:smove('setA', 'foo', 5)
             end)
         end)
 
-        test("SCARD (redis:scard)", function()
-            utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5' })
+        test("SCARD (client:scard)", function()
+            utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5' })
 
-            assert_equal(redis:scard('setA'), 6)
+            assert_equal(client:scard('setA'), 6)
 
             -- empty set
-            redis:sadd('setB', 0)
-            redis:spop('setB')
-            assert_equal(redis:scard('doesnotexist'), 0)
+            client:sadd('setB', 0)
+            client:spop('setB')
+            assert_equal(client:scard('doesnotexist'), 0)
 
             -- non-existent set
-            assert_equal(redis:scard('doesnotexist'), 0)
+            assert_equal(client:scard('doesnotexist'), 0)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:scard('foo')
+                client:set('foo', 'bar')
+                client:scard('foo')
             end)
         end)
 
-        test("SISMEMBER (redis:sismember)", function()
-            utils.sadd_return(redis, 'set', { '0', '1', '2', '3', '4', '5' })
+        test("SISMEMBER (client:sismember)", function()
+            utils.sadd_return(client, 'set', { '0', '1', '2', '3', '4', '5' })
 
-            assert_true(redis:sismember('set', 3))
-            assert_false(redis:sismember('set', 100))
-            assert_false(redis:sismember('doesnotexist', 0))
+            assert_true(client:sismember('set', 3))
+            assert_false(client:sismember('set', 100))
+            assert_false(client:sismember('doesnotexist', 0))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sismember('foo', 0)
+                client:set('foo', 'bar')
+                client:sismember('foo', 0)
             end)
         end)
 
-        test("SMEMBERS (redis:smembers)", function()
-            local set = utils.sadd_return(redis, 'set', { '0', '1', '2', '3', '4', '5' })
+        test("SMEMBERS (client:smembers)", function()
+            local set = utils.sadd_return(client, 'set', { '0', '1', '2', '3', '4', '5' })
 
-            assert_table_values(redis:smembers('set'), set)
+            assert_table_values(client:smembers('set'), set)
 
             if version:is('<', '2.0.0') then
-                assert_nil(redis:smembers('doesnotexist'))
+                assert_nil(client:smembers('doesnotexist'))
             else
-                assert_table_values(redis:smembers('doesnotexist'), {})
+                assert_table_values(client:smembers('doesnotexist'), {})
             end
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:smembers('foo')
+                client:set('foo', 'bar')
+                client:smembers('foo')
             end)
         end)
 
-        test("SINTER (redis:sinter)", function()
-            local setA = utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
-            local setB = utils.sadd_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+        test("SINTER (client:sinter)", function()
+            local setA = utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.sadd_return(client, 'setB', { '1', '3', '4', '6', '9', '10' })
 
-            assert_table_values(redis:sinter('setA'), setA)
-            assert_table_values(redis:sinter('setA', 'setB'), { '3', '4', '6', '1' })
+            assert_table_values(client:sinter('setA'), setA)
+            assert_table_values(client:sinter('setA', 'setB'), { '3', '4', '6', '1' })
 
             if version:is('<', '2.0.0') then
-                assert_nil(redis:sinter('setA', 'doesnotexist'))
+                assert_nil(client:sinter('setA', 'doesnotexist'))
             else
-                assert_table_values(redis:sinter('setA', 'doesnotexist'), {})
+                assert_table_values(client:sinter('setA', 'doesnotexist'), {})
             end
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sinter('foo')
+                client:set('foo', 'bar')
+                client:sinter('foo')
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sinter('setA', 'foo')
+                client:set('foo', 'bar')
+                client:sinter('setA', 'foo')
             end)
         end)
 
-        test("SINTERSTORE (redis:sinterstore)", function()
-            local setA = utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
-            local setB = utils.sadd_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+        test("SINTERSTORE (client:sinterstore)", function()
+            local setA = utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.sadd_return(client, 'setB', { '1', '3', '4', '6', '9', '10' })
 
-            assert_equal(redis:sinterstore('setC', 'setA'), #setA)
-            assert_table_values(redis:smembers('setC'), setA)
+            assert_equal(client:sinterstore('setC', 'setA'), #setA)
+            assert_table_values(client:smembers('setC'), setA)
 
-            redis:del('setC')
+            client:del('setC')
             -- this behaviour has changed in redis 2.0
-            assert_equal(redis:sinterstore('setC', 'setA', 'setB'), 4)
-            assert_table_values(redis:smembers('setC'), { '1', '3', '4', '6' })
+            assert_equal(client:sinterstore('setC', 'setA', 'setB'), 4)
+            assert_table_values(client:smembers('setC'), { '1', '3', '4', '6' })
 
-            redis:del('setC')
-            assert_equal(redis:sinterstore('setC', 'doesnotexist'), 0)
-            assert_false(redis:exists('setC'))
+            client:del('setC')
+            assert_equal(client:sinterstore('setC', 'doesnotexist'), 0)
+            assert_false(client:exists('setC'))
 
             -- existing keys are replaced by SINTERSTORE
-            redis:set('foo', 'bar')
-            assert_equal(redis:sinterstore('foo', 'setA'), #setA)
+            client:set('foo', 'bar')
+            assert_equal(client:sinterstore('foo', 'setA'), #setA)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sinterstore('setA', 'foo')
+                client:set('foo', 'bar')
+                client:sinterstore('setA', 'foo')
             end)
         end)
 
-        test("SUNION (redis:sunion)", function()
-            local setA = utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
-            local setB = utils.sadd_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+        test("SUNION (client:sunion)", function()
+            local setA = utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.sadd_return(client, 'setB', { '1', '3', '4', '6', '9', '10' })
 
-            assert_table_values(redis:sunion('setA'), setA)
+            assert_table_values(client:sunion('setA'), setA)
             assert_table_values(
-                redis:sunion('setA', 'setB'),
+                client:sunion('setA', 'setB'),
                 { '0', '1', '10', '2', '3', '4', '5', '6', '9' }
             )
 
             -- this behaviour has changed in redis 2.0
-            assert_table_values(redis:sunion('setA', 'doesnotexist'), setA)
+            assert_table_values(client:sunion('setA', 'doesnotexist'), setA)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sunion('foo')
+                client:set('foo', 'bar')
+                client:sunion('foo')
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sunion('setA', 'foo')
+                client:set('foo', 'bar')
+                client:sunion('setA', 'foo')
             end)
         end)
 
-        test("SUNIONSTORE (redis:sunionstore)", function()
-            local setA = utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
-            local setB = utils.sadd_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+        test("SUNIONSTORE (client:sunionstore)", function()
+            local setA = utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.sadd_return(client, 'setB', { '1', '3', '4', '6', '9', '10' })
 
-            assert_equal(redis:sunionstore('setC', 'setA'), #setA)
-            assert_table_values(redis:smembers('setC'), setA)
+            assert_equal(client:sunionstore('setC', 'setA'), #setA)
+            assert_table_values(client:smembers('setC'), setA)
 
-            redis:del('setC')
-            assert_equal(redis:sunionstore('setC', 'setA', 'setB'), 9)
+            client:del('setC')
+            assert_equal(client:sunionstore('setC', 'setA', 'setB'), 9)
             assert_table_values(
-                redis:smembers('setC'),
+                client:smembers('setC'),
                 { '0' ,'1' , '10', '2', '3', '4', '5', '6', '9' }
             )
 
-            redis:del('setC')
-            assert_equal(redis:sunionstore('setC', 'doesnotexist'), 0)
+            client:del('setC')
+            assert_equal(client:sunionstore('setC', 'doesnotexist'), 0)
             if version:is('<', '2.0.0') then
-                assert_true(redis:exists('setC'))
+                assert_true(client:exists('setC'))
             else
-                assert_false(redis:exists('setC'))
+                assert_false(client:exists('setC'))
             end
-            assert_equal(redis:scard('setC'), 0)
+            assert_equal(client:scard('setC'), 0)
 
             -- existing keys are replaced by SUNIONSTORE
-            redis:set('foo', 'bar')
-            assert_equal(redis:sunionstore('foo', 'setA'), #setA)
+            client:set('foo', 'bar')
+            assert_equal(client:sunionstore('foo', 'setA'), #setA)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sunionstore('setA', 'foo')
+                client:set('foo', 'bar')
+                client:sunionstore('setA', 'foo')
             end)
         end)
 
-        test("SDIFF (redis:sdiff)", function()
-            local setA = utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
-            local setB = utils.sadd_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+        test("SDIFF (client:sdiff)", function()
+            local setA = utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.sadd_return(client, 'setB', { '1', '3', '4', '6', '9', '10' })
 
-            assert_table_values(redis:sdiff('setA'), setA)
-            assert_table_values(redis:sdiff('setA', 'setB'), { '5', '0', '2' })
-            assert_table_values(redis:sdiff('setA', 'doesnotexist'), setA)
+            assert_table_values(client:sdiff('setA'), setA)
+            assert_table_values(client:sdiff('setA', 'setB'), { '5', '0', '2' })
+            assert_table_values(client:sdiff('setA', 'doesnotexist'), setA)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sdiff('foo')
+                client:set('foo', 'bar')
+                client:sdiff('foo')
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sdiff('setA', 'foo')
+                client:set('foo', 'bar')
+                client:sdiff('setA', 'foo')
             end)
         end)
 
-        test("SDIFFSTORE (redis:sdiffstore)", function()
-            local setA = utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
-            local setB = utils.sadd_return(redis, 'setB', { '1', '3', '4', '6', '9', '10' })
+        test("SDIFFSTORE (client:sdiffstore)", function()
+            local setA = utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+            local setB = utils.sadd_return(client, 'setB', { '1', '3', '4', '6', '9', '10' })
 
-            assert_equal(redis:sdiffstore('setC', 'setA'), #setA)
-            assert_table_values(redis:smembers('setC'), setA)
+            assert_equal(client:sdiffstore('setC', 'setA'), #setA)
+            assert_table_values(client:smembers('setC'), setA)
 
-            redis:del('setC')
-            assert_equal(redis:sdiffstore('setC', 'setA', 'setB'), 3)
-            assert_table_values(redis:smembers('setC'), { '5', '0', '2' })
+            client:del('setC')
+            assert_equal(client:sdiffstore('setC', 'setA', 'setB'), 3)
+            assert_table_values(client:smembers('setC'), { '5', '0', '2' })
 
-            redis:del('setC')
-            assert_equal(redis:sdiffstore('setC', 'doesnotexist'), 0)
+            client:del('setC')
+            assert_equal(client:sdiffstore('setC', 'doesnotexist'), 0)
             if version:is('<', '2.0.0') then
-                assert_true(redis:exists('setC'))
+                assert_true(client:exists('setC'))
             else
-                assert_false(redis:exists('setC'))
+                assert_false(client:exists('setC'))
             end
-            assert_equal(redis:scard('setC'), 0)
+            assert_equal(client:scard('setC'), 0)
 
             -- existing keys are replaced by SDIFFSTORE
-            redis:set('foo', 'bar')
-            assert_equal(redis:sdiffstore('foo', 'setA'), #setA)
+            client:set('foo', 'bar')
+            assert_equal(client:sdiffstore('foo', 'setA'), #setA)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:sdiffstore('setA', 'foo')
+                client:set('foo', 'bar')
+                client:sdiffstore('setA', 'foo')
             end)
         end)
 
-        test("SRANDMEMBER (redis:srandmember)", function()
-            local setA = utils.sadd_return(redis, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
+        test("SRANDMEMBER (client:srandmember)", function()
+            local setA = utils.sadd_return(client, 'setA', { '0', '1', '2', '3', '4', '5', '6' })
 
-            assert_true(table.contains(setA, redis:srandmember('setA')))
-            assert_nil(redis:srandmember('doesnotexist'))
+            assert_true(table.contains(setA, client:srandmember('setA')))
+            assert_nil(client:srandmember('doesnotexist'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:srandmember('foo')
+                client:set('foo', 'bar')
+                client:srandmember('foo')
             end)
         end)
     end)
 
     context("Commands operating on zsets", function()
-        test("ZADD (redis:zadd)", function()
-            assert_true(redis:zadd('zset', 0, 'a'))
-            assert_true(redis:zadd('zset', 1, 'b'))
-            assert_true(redis:zadd('zset', -1, 'c'))
+        test("ZADD (client:zadd)", function()
+            assert_true(client:zadd('zset', 0, 'a'))
+            assert_true(client:zadd('zset', 1, 'b'))
+            assert_true(client:zadd('zset', -1, 'c'))
 
-            assert_false(redis:zadd('zset', 2, 'b'))
-            assert_false(redis:zadd('zset', -22, 'b'))
+            assert_false(client:zadd('zset', 2, 'b'))
+            assert_false(client:zadd('zset', -22, 'b'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zadd('foo', 0, 'a')
+                client:set('foo', 'bar')
+                client:zadd('foo', 0, 'a')
             end)
         end)
 
-        test("ZINCRBY (redis:zincrby)", function()
-            assert_equal(redis:zincrby('doesnotexist', 1, 'foo'), '1')
-            assert_equal(redis:type('doesnotexist'), 'zset')
+        test("ZINCRBY (client:zincrby)", function()
+            assert_equal(client:zincrby('doesnotexist', 1, 'foo'), '1')
+            assert_equal(client:type('doesnotexist'), 'zset')
 
-            utils.zadd_return(redis, 'zset', shared.zset_sample())
-            assert_equal(redis:zincrby('zset', 5, 'a'), '-5')
-            assert_equal(redis:zincrby('zset', 1, 'b'), '1')
-            assert_equal(redis:zincrby('zset', 0, 'c'), '10')
-            assert_equal(redis:zincrby('zset', -20, 'd'), '0')
-            assert_equal(redis:zincrby('zset', 2, 'd'), '2')
-            assert_equal(redis:zincrby('zset', -30, 'e'), '-10')
-            assert_equal(redis:zincrby('zset', 1, 'x'), '1')
+            utils.zadd_return(client, 'zset', shared.zset_sample())
+            assert_equal(client:zincrby('zset', 5, 'a'), '-5')
+            assert_equal(client:zincrby('zset', 1, 'b'), '1')
+            assert_equal(client:zincrby('zset', 0, 'c'), '10')
+            assert_equal(client:zincrby('zset', -20, 'd'), '0')
+            assert_equal(client:zincrby('zset', 2, 'd'), '2')
+            assert_equal(client:zincrby('zset', -30, 'e'), '-10')
+            assert_equal(client:zincrby('zset', 1, 'x'), '1')
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zincrby('foo', 1, 'a')
+                client:set('foo', 'bar')
+                client:zincrby('foo', 1, 'a')
             end)
         end)
 
-        test("ZREM (redis:zrem)", function()
-            utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZREM (client:zrem)", function()
+            utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_true(redis:zrem('zset', 'a'))
-            assert_false(redis:zrem('zset', 'x'))
+            assert_true(client:zrem('zset', 'a'))
+            assert_false(client:zrem('zset', 'x'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zrem('foo', 'bar')
+                client:set('foo', 'bar')
+                client:zrem('foo', 'bar')
             end)
         end)
 
-        test("ZRANGE (redis:zrange)", function()
-            local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZRANGE (client:zrange)", function()
+            local zset = utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_table_values(redis:zrange('zset', 0, 3), { 'a', 'b', 'c', 'd' })
-            assert_table_values(redis:zrange('zset', 0, 0), { 'a' })
-            assert_empty(redis:zrange('zset', 1, 0))
-            assert_table_values(redis:zrange('zset', 0, -1), table.keys(zset))
-            assert_table_values(redis:zrange('zset', 3, -3), { 'd' })
-            assert_empty(redis:zrange('zset', 5, -3))
-            assert_table_values(redis:zrange('zset', -100, 100), table.keys(zset))
+            assert_table_values(client:zrange('zset', 0, 3), { 'a', 'b', 'c', 'd' })
+            assert_table_values(client:zrange('zset', 0, 0), { 'a' })
+            assert_empty(client:zrange('zset', 1, 0))
+            assert_table_values(client:zrange('zset', 0, -1), table.keys(zset))
+            assert_table_values(client:zrange('zset', 3, -3), { 'd' })
+            assert_empty(client:zrange('zset', 5, -3))
+            assert_table_values(client:zrange('zset', -100, 100), table.keys(zset))
 
             assert_table_values(
-                redis:zrange('zset', 0, 2, 'withscores'),
+                client:zrange('zset', 0, 2, 'withscores'),
                   { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
             )
 
             assert_table_values(
-                redis:zrange('zset', 0, 2, { withscores = true }),
+                client:zrange('zset', 0, 2, { withscores = true }),
                   { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
             )
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zrange('foo', 0, -1)
+                client:set('foo', 'bar')
+                client:zrange('foo', 0, -1)
             end)
         end)
 
-        test("ZREVRANGE (redis:zrevrange)", function()
-            local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZREVRANGE (client:zrevrange)", function()
+            local zset = utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_table_values(redis:zrevrange('zset', 0, 3), { 'f', 'e', 'd', 'c' })
-            assert_table_values(redis:zrevrange('zset', 0, 0), { 'f' })
-            assert_empty(redis:zrevrange('zset', 1, 0))
-            assert_table_values(redis:zrevrange('zset', 0, -1), table.keys(zset))
-            assert_table_values(redis:zrevrange('zset', 3, -3), { 'c' })
-            assert_empty(redis:zrevrange('zset', 5, -3))
-            assert_table_values(redis:zrevrange('zset', -100, 100), table.keys(zset))
+            assert_table_values(client:zrevrange('zset', 0, 3), { 'f', 'e', 'd', 'c' })
+            assert_table_values(client:zrevrange('zset', 0, 0), { 'f' })
+            assert_empty(client:zrevrange('zset', 1, 0))
+            assert_table_values(client:zrevrange('zset', 0, -1), table.keys(zset))
+            assert_table_values(client:zrevrange('zset', 3, -3), { 'c' })
+            assert_empty(client:zrevrange('zset', 5, -3))
+            assert_table_values(client:zrevrange('zset', -100, 100), table.keys(zset))
 
             assert_table_values(
-                redis:zrevrange('zset', 0, 2, 'withscores'),
+                client:zrevrange('zset', 0, 2, 'withscores'),
                 { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
             )
 
             assert_table_values(
-                redis:zrevrange('zset', 0, 2, { withscores = true }),
+                client:zrevrange('zset', 0, 2, { withscores = true }),
                 { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
             )
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zrevrange('foo', 0, -1)
+                client:set('foo', 'bar')
+                client:zrevrange('foo', 0, -1)
             end)
         end)
 
-        test("ZRANGEBYSCORE (redis:zrangebyscore)", function()
-            local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZRANGEBYSCORE (client:zrangebyscore)", function()
+            local zset = utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_table_values(redis:zrangebyscore('zset', -10, -10), { 'a' })
-            assert_table_values(redis:zrangebyscore('zset', 10, 30), { 'c', 'd', 'e', 'f' })
-            assert_table_values(redis:zrangebyscore('zset', 20, 20), { 'd', 'e' })
-            assert_empty(redis:zrangebyscore('zset', 30, 0))
+            assert_table_values(client:zrangebyscore('zset', -10, -10), { 'a' })
+            assert_table_values(client:zrangebyscore('zset', 10, 30), { 'c', 'd', 'e', 'f' })
+            assert_table_values(client:zrangebyscore('zset', 20, 20), { 'd', 'e' })
+            assert_empty(client:zrangebyscore('zset', 30, 0))
 
             assert_table_values(
-                redis:zrangebyscore('zset', 10, 20, 'withscores'),
+                client:zrangebyscore('zset', 10, 20, 'withscores'),
                 { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
             )
 
             assert_table_values(
-                redis:zrangebyscore('zset', 10, 20, { withscores = true }),
+                client:zrangebyscore('zset', 10, 20, { withscores = true }),
                 { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
             )
 
             assert_table_values(
-                redis:zrangebyscore('zset', 10, 20, { limit = { 1, 2 } }),
+                client:zrangebyscore('zset', 10, 20, { limit = { 1, 2 } }),
                 { 'd', 'e' }
             )
 
             assert_table_values(
-                redis:zrangebyscore('zset', 10, 20, {
+                client:zrangebyscore('zset', 10, 20, {
                     limit = { offset = 1, count = 2 }
                 }),
                 { 'd', 'e' }
             )
 
             assert_table_values(
-                redis:zrangebyscore('zset', 10, 20, {
+                client:zrangebyscore('zset', 10, 20, {
                     limit = { offset = 1, count = 2 },
                     withscores = true
                 }),
@@ -1637,38 +1637,38 @@ context("Redis commands", function()
             )
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zrangebyscore('foo', 0, -1)
+                client:set('foo', 'bar')
+                client:zrangebyscore('foo', 0, -1)
             end)
         end)
 
-        test("ZREVRANGEBYSCORE (redis:zrevrangebyscore)", function()
-            local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZREVRANGEBYSCORE (client:zrevrangebyscore)", function()
+            local zset = utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_table_values(redis:zrevrangebyscore('zset', -10, -10), { 'a' })
-            assert_table_values(redis:zrevrangebyscore('zset', 0, -10), { 'b', 'a' })
-            assert_table_values(redis:zrevrangebyscore('zset', 20, 20), { 'e', 'd' })
-            assert_table_values(redis:zrevrangebyscore('zset', 30, 0), { 'f', 'e', 'd', 'c', 'b' })
+            assert_table_values(client:zrevrangebyscore('zset', -10, -10), { 'a' })
+            assert_table_values(client:zrevrangebyscore('zset', 0, -10), { 'b', 'a' })
+            assert_table_values(client:zrevrangebyscore('zset', 20, 20), { 'e', 'd' })
+            assert_table_values(client:zrevrangebyscore('zset', 30, 0), { 'f', 'e', 'd', 'c', 'b' })
 
             assert_table_values(
-                redis:zrevrangebyscore('zset', 20, 10, 'withscores'),
+                client:zrevrangebyscore('zset', 20, 10, 'withscores'),
                 { { 'e', '20' }, { 'd', '20' }, { 'c', '10' } }
             )
 
             assert_table_values(
-                redis:zrevrangebyscore('zset', 20, 10, { limit = { 1, 2 } }),
+                client:zrevrangebyscore('zset', 20, 10, { limit = { 1, 2 } }),
                 { 'd', 'c' }
             )
 
             assert_table_values(
-                redis:zrevrangebyscore('zset', 20, 10, {
+                client:zrevrangebyscore('zset', 20, 10, {
                     limit = { offset = 1, count = 2 }
                 }),
                 { 'd', 'c' }
             )
 
             assert_table_values(
-                redis:zrevrangebyscore('zset', 20, 10, {
+                client:zrevrangebyscore('zset', 20, 10, {
                     limit = { offset = 1, count = 2 },
                     withscores = true
                 }),
@@ -1676,466 +1676,466 @@ context("Redis commands", function()
             )
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zrevrangebyscore('foo', 0, -1)
+                client:set('foo', 'bar')
+                client:zrevrangebyscore('foo', 0, -1)
             end)
         end)
 
 
-        test("ZUNIONSTORE (redis:zunionstore)", function()
+        test("ZUNIONSTORE (client:zunionstore)", function()
             if version:is('<', '2.0.0') then return end
 
-            utils.zadd_return(redis, 'zseta', { a = 1, b = 2, c = 3 })
-            utils.zadd_return(redis, 'zsetb', { b = 1, c = 2, d = 3 })
+            utils.zadd_return(client, 'zseta', { a = 1, b = 2, c = 3 })
+            utils.zadd_return(client, 'zsetb', { b = 1, c = 2, d = 3 })
 
             -- basic ZUNIONSTORE
-            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb'), 4)
+            assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb'), 4)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'a', '1' }, { 'b', '3' }, { 'd', '3' }, { 'c', '5' } }
             )
 
-            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetbNull'), 3)
+            assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetbNull'), 3)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'a', '1' }, { 'b', '2' }, { 'c', '3' }}
             )
 
-            assert_equal(redis:zunionstore('zsetc', 2, 'zsetaNull', 'zsetb'), 3)
+            assert_equal(client:zunionstore('zsetc', 2, 'zsetaNull', 'zsetb'), 3)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'b', '1' }, { 'c', '2' }, { 'd', '3' }}
             )
 
-            assert_equal(redis:zunionstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
+            assert_equal(client:zunionstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
 
             -- with WEIGHTS
             local opts =  { weights = { 2, 3 } }
-            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
+            assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'a', '2' }, { 'b', '7' }, { 'd', '9' }, { 'c', '12' } }
             )
 
             -- with AGGREGATE (min)
             local opts =  { aggregate = 'min' }
-            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
+            assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'a', '1' }, { 'b', '1' }, { 'c', '2' }, { 'd', '3' } }
             )
 
             -- with AGGREGATE (max)
             local opts =  { aggregate = 'max' }
-            assert_equal(redis:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
+            assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'a', '1' }, { 'b', '2' }, { 'c', '3' }, { 'd', '3' } }
             )
 
             assert_error(function()
-                redis:set('zsetFake', 'fake')
-                redis:zunionstore('zsetc', 2, 'zseta', 'zsetFake')
+                client:set('zsetFake', 'fake')
+                client:zunionstore('zsetc', 2, 'zseta', 'zsetFake')
             end)
         end)
 
-        test("ZINTERSTORE (redis:zinterstore)", function()
+        test("ZINTERSTORE (client:zinterstore)", function()
             if version:is('<', '2.0.0') then return end
 
-            utils.zadd_return(redis, 'zseta', { a = 1, b = 2, c = 3 })
-            utils.zadd_return(redis, 'zsetb', { b = 1, c = 2, d = 3 })
+            utils.zadd_return(client, 'zseta', { a = 1, b = 2, c = 3 })
+            utils.zadd_return(client, 'zsetb', { b = 1, c = 2, d = 3 })
 
             -- basic ZUNIONSTORE
-            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb'), 2)
+            assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb'), 2)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'b', '3' }, { 'c', '5' } }
             )
 
-            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetbNull'), 0)
-            assert_equal(redis:zinterstore('zsetc', 2, 'zsetaNull', 'zsetb'), 0)
-            assert_equal(redis:zinterstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
+            assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetbNull'), 0)
+            assert_equal(client:zinterstore('zsetc', 2, 'zsetaNull', 'zsetb'), 0)
+            assert_equal(client:zinterstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
 
             -- with WEIGHTS
             local opts =  { weights = { 2, 3 } }
-            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
+            assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'b', '7' }, { 'c', '12' } }
             )
 
             -- with AGGREGATE (min)
             local opts =  { aggregate = 'min' }
-            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
+            assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'b', '1' }, { 'c', '2' } }
             )
 
             -- with AGGREGATE (max)
             local opts =  { aggregate = 'max' }
-            assert_equal(redis:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
+            assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
-                redis:zrange('zsetc', 0, -1, 'withscores'),
+                client:zrange('zsetc', 0, -1, 'withscores'),
                 { { 'b', '2' }, { 'c', '3' } }
             )
 
             assert_error(function()
-                redis:set('zsetFake', 'fake')
-                redis:zinterstore('zsetc', 2, 'zseta', 'zsetFake')
+                client:set('zsetFake', 'fake')
+                client:zinterstore('zsetc', 2, 'zseta', 'zsetFake')
             end)
         end)
 
-        test("ZCOUNT (redis:zcount)", function()
+        test("ZCOUNT (client:zcount)", function()
             if version:is('<', '2.0.0') then return end
 
-            utils.zadd_return(redis, 'zset', shared.zset_sample())
+            utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_equal(redis:zcount('zset', 50, 100), 0)
-            assert_equal(redis:zcount('zset', -100, 100), 6)
-            assert_equal(redis:zcount('zset', 10, 20), 3)
-            assert_equal(redis:zcount('zset', '(10', 20), 2)
-            assert_equal(redis:zcount('zset', 10, '(20'), 1)
-            assert_equal(redis:zcount('zset', '(10', '(20'), 0)
-            assert_equal(redis:zcount('zset', '(0', '(30'), 3)
+            assert_equal(client:zcount('zset', 50, 100), 0)
+            assert_equal(client:zcount('zset', -100, 100), 6)
+            assert_equal(client:zcount('zset', 10, 20), 3)
+            assert_equal(client:zcount('zset', '(10', 20), 2)
+            assert_equal(client:zcount('zset', 10, '(20'), 1)
+            assert_equal(client:zcount('zset', '(10', '(20'), 0)
+            assert_equal(client:zcount('zset', '(0', '(30'), 3)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zcount('foo', 0, 0)
+                client:set('foo', 'bar')
+                client:zcount('foo', 0, 0)
             end)
         end)
 
-        test("ZCARD (redis:zcard)", function()
-            local zset = utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZCARD (client:zcard)", function()
+            local zset = utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_equal(redis:zcard('zset'), #table.keys(zset))
+            assert_equal(client:zcard('zset'), #table.keys(zset))
 
-            redis:zrem('zset', 'a')
-            assert_equal(redis:zcard('zset'), #table.keys(zset) - 1)
+            client:zrem('zset', 'a')
+            assert_equal(client:zcard('zset'), #table.keys(zset) - 1)
 
-            redis:zadd('zsetB', 0, 'a')
-            redis:zrem('zsetB', 'a')
-            assert_equal(redis:zcard('zsetB'), 0)
+            client:zadd('zsetB', 0, 'a')
+            client:zrem('zsetB', 'a')
+            assert_equal(client:zcard('zsetB'), 0)
 
-            assert_equal(redis:zcard('doesnotexist'), 0)
+            assert_equal(client:zcard('doesnotexist'), 0)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zcard('foo')
+                client:set('foo', 'bar')
+                client:zcard('foo')
             end)
         end)
 
-        test("ZSCORE (redis:zscore)", function()
-            utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZSCORE (client:zscore)", function()
+            utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_equal(redis:zscore('zset', 'a'), '-10')
-            assert_equal(redis:zscore('zset', 'c'), '10')
-            assert_equal(redis:zscore('zset', 'e'), '20')
+            assert_equal(client:zscore('zset', 'a'), '-10')
+            assert_equal(client:zscore('zset', 'c'), '10')
+            assert_equal(client:zscore('zset', 'e'), '20')
 
-            assert_nil(redis:zscore('zset', 'x'))
-            assert_nil(redis:zscore('doesnotexist', 'a'))
+            assert_nil(client:zscore('zset', 'x'))
+            assert_nil(client:zscore('doesnotexist', 'a'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zscore('foo', 'a')
+                client:set('foo', 'bar')
+                client:zscore('foo', 'a')
             end)
         end)
 
-        test("ZREMRANGEBYSCORE (redis:zremrangebyscore)", function()
-            utils.zadd_return(redis, 'zset', shared.zset_sample())
+        test("ZREMRANGEBYSCORE (client:zremrangebyscore)", function()
+            utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_equal(redis:zremrangebyscore('zset', -10, 0), 2)
-            assert_table_values(redis:zrange('zset', 0, -1), { 'c', 'd', 'e', 'f' })
+            assert_equal(client:zremrangebyscore('zset', -10, 0), 2)
+            assert_table_values(client:zrange('zset', 0, -1), { 'c', 'd', 'e', 'f' })
 
-            assert_equal(redis:zremrangebyscore('zset', 10, 10), 1)
-            assert_table_values(redis:zrange('zset', 0, -1), { 'd', 'e', 'f' })
+            assert_equal(client:zremrangebyscore('zset', 10, 10), 1)
+            assert_table_values(client:zrange('zset', 0, -1), { 'd', 'e', 'f' })
 
-            assert_equal(redis:zremrangebyscore('zset', 100, 100), 0)
+            assert_equal(client:zremrangebyscore('zset', 100, 100), 0)
 
-            assert_equal(redis:zremrangebyscore('zset', 0, 100), 3)
-            assert_equal(redis:zremrangebyscore('zset', 0, 100), 0)
+            assert_equal(client:zremrangebyscore('zset', 0, 100), 3)
+            assert_equal(client:zremrangebyscore('zset', 0, 100), 0)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zremrangebyscore('foo', 0, 0)
+                client:set('foo', 'bar')
+                client:zremrangebyscore('foo', 0, 0)
             end)
         end)
 
-        test("ZRANK (redis:zrank)", function()
+        test("ZRANK (client:zrank)", function()
             if version:is('<', '2.0.0') then return end
 
-            utils.zadd_return(redis, 'zset', shared.zset_sample())
+            utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_equal(redis:zrank('zset', 'a'), 0)
-            assert_equal(redis:zrank('zset', 'b'), 1)
-            assert_equal(redis:zrank('zset', 'e'), 4)
+            assert_equal(client:zrank('zset', 'a'), 0)
+            assert_equal(client:zrank('zset', 'b'), 1)
+            assert_equal(client:zrank('zset', 'e'), 4)
 
-            redis:zrem('zset', 'd')
-            assert_equal(redis:zrank('zset', 'e'), 3)
+            client:zrem('zset', 'd')
+            assert_equal(client:zrank('zset', 'e'), 3)
 
-            assert_nil(redis:zrank('zset', 'x'))
+            assert_nil(client:zrank('zset', 'x'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zrank('foo', 'a')
+                client:set('foo', 'bar')
+                client:zrank('foo', 'a')
             end)
         end)
 
-        test("ZREVRANK (redis:zrevrank)", function()
+        test("ZREVRANK (client:zrevrank)", function()
             if version:is('<', '2.0.0') then return end
 
-            utils.zadd_return(redis, 'zset', shared.zset_sample())
+            utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_equal(redis:zrevrank('zset', 'a'), 5)
-            assert_equal(redis:zrevrank('zset', 'b'), 4)
-            assert_equal(redis:zrevrank('zset', 'e'), 1)
+            assert_equal(client:zrevrank('zset', 'a'), 5)
+            assert_equal(client:zrevrank('zset', 'b'), 4)
+            assert_equal(client:zrevrank('zset', 'e'), 1)
 
-            redis:zrem('zset', 'e')
-            assert_equal(redis:zrevrank('zset', 'd'), 1)
+            client:zrem('zset', 'e')
+            assert_equal(client:zrevrank('zset', 'd'), 1)
 
-            assert_nil(redis:zrevrank('zset', 'x'))
+            assert_nil(client:zrevrank('zset', 'x'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zrevrank('foo', 'a')
+                client:set('foo', 'bar')
+                client:zrevrank('foo', 'a')
             end)
         end)
 
-        test("ZREMRANGEBYRANK (redis:zremrangebyrank)", function()
+        test("ZREMRANGEBYRANK (client:zremrangebyrank)", function()
             if version:is('<', '2.0.0') then return end
 
-            utils.zadd_return(redis, 'zseta', shared.zset_sample())
-            assert_equal(redis:zremrangebyrank('zseta', 0, 2), 3)
-            assert_table_values(redis:zrange('zseta', 0, -1), { 'd', 'e', 'f' })
-            assert_equal(redis:zremrangebyrank('zseta', 0, 0), 1)
-            assert_table_values(redis:zrange('zseta', 0, -1), { 'e', 'f' })
+            utils.zadd_return(client, 'zseta', shared.zset_sample())
+            assert_equal(client:zremrangebyrank('zseta', 0, 2), 3)
+            assert_table_values(client:zrange('zseta', 0, -1), { 'd', 'e', 'f' })
+            assert_equal(client:zremrangebyrank('zseta', 0, 0), 1)
+            assert_table_values(client:zrange('zseta', 0, -1), { 'e', 'f' })
 
-            utils.zadd_return(redis, 'zsetb', shared.zset_sample())
-            assert_equal(redis:zremrangebyrank('zsetb', -3, -1), 3)
-            assert_table_values(redis:zrange('zsetb', 0, -1), { 'a', 'b', 'c' })
-            assert_equal(redis:zremrangebyrank('zsetb', -1, -1), 1)
-            assert_table_values(redis:zrange('zsetb', 0, -1), { 'a', 'b' })
-            assert_equal(redis:zremrangebyrank('zsetb', -2, -1), 2)
-            assert_table_values(redis:zrange('zsetb', 0, -1), { })
-            assert_false(redis:exists('zsetb'))
+            utils.zadd_return(client, 'zsetb', shared.zset_sample())
+            assert_equal(client:zremrangebyrank('zsetb', -3, -1), 3)
+            assert_table_values(client:zrange('zsetb', 0, -1), { 'a', 'b', 'c' })
+            assert_equal(client:zremrangebyrank('zsetb', -1, -1), 1)
+            assert_table_values(client:zrange('zsetb', 0, -1), { 'a', 'b' })
+            assert_equal(client:zremrangebyrank('zsetb', -2, -1), 2)
+            assert_table_values(client:zrange('zsetb', 0, -1), { })
+            assert_false(client:exists('zsetb'))
 
-            assert_equal(redis:zremrangebyrank('zsetc', 0, 0), 0)
+            assert_equal(client:zremrangebyrank('zsetc', 0, 0), 0)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:zremrangebyrank('foo', 0, 1)
+                client:set('foo', 'bar')
+                client:zremrangebyrank('foo', 0, 1)
             end)
         end)
     end)
 
     context("Commands operating on hashes", function()
-        test("HSET (redis:hset)", function()
+        test("HSET (client:hset)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:hset('metavars', 'foo', 'bar'))
-            assert_true(redis:hset('metavars', 'hoge', 'piyo'))
-            assert_equal(redis:hget('metavars', 'foo'), 'bar')
-            assert_equal(redis:hget('metavars', 'hoge'), 'piyo')
+            assert_true(client:hset('metavars', 'foo', 'bar'))
+            assert_true(client:hset('metavars', 'hoge', 'piyo'))
+            assert_equal(client:hget('metavars', 'foo'), 'bar')
+            assert_equal(client:hget('metavars', 'hoge'), 'piyo')
 
             assert_error(function()
-                redis:set('test', 'foobar')
-                redis:hset('test', 'hoge', 'piyo')
+                client:set('test', 'foobar')
+                client:hset('test', 'hoge', 'piyo')
             end)
         end)
 
-        test("HGET (redis:hget)", function()
+        test("HGET (client:hget)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:hset('metavars', 'foo', 'bar'))
-            assert_equal(redis:hget('metavars', 'foo'), 'bar')
-            assert_nil(redis:hget('metavars', 'hoge'))
-            assert_nil(redis:hget('hashDoesNotExist', 'field'))
+            assert_true(client:hset('metavars', 'foo', 'bar'))
+            assert_equal(client:hget('metavars', 'foo'), 'bar')
+            assert_nil(client:hget('metavars', 'hoge'))
+            assert_nil(client:hget('hashDoesNotExist', 'field'))
 
             assert_error(function()
-                redis:rpush('metavars', 'foo')
-                redis:hget('metavars', 'foo')
+                client:rpush('metavars', 'foo')
+                client:hget('metavars', 'foo')
             end)
         end)
 
-        test("HEXISTS (redis:hexists)", function()
+        test("HEXISTS (client:hexists)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:hset('metavars', 'foo', 'bar'))
-            assert_true(redis:hexists('metavars', 'foo'))
-            assert_false(redis:hexists('metavars', 'hoge'))
-            assert_false(redis:hexists('hashDoesNotExist', 'field'))
+            assert_true(client:hset('metavars', 'foo', 'bar'))
+            assert_true(client:hexists('metavars', 'foo'))
+            assert_false(client:hexists('metavars', 'hoge'))
+            assert_false(client:hexists('hashDoesNotExist', 'field'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hexists('foo')
+                client:set('foo', 'bar')
+                client:hexists('foo')
             end)
         end)
 
-        test("HDEL (redis:hdel)", function()
+        test("HDEL (client:hdel)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:hset('metavars', 'foo', 'bar'))
-            assert_true(redis:hexists('metavars', 'foo'))
-            assert_true(redis:hdel('metavars', 'foo'))
-            assert_false(redis:hexists('metavars', 'foo'))
+            assert_true(client:hset('metavars', 'foo', 'bar'))
+            assert_true(client:hexists('metavars', 'foo'))
+            assert_true(client:hdel('metavars', 'foo'))
+            assert_false(client:hexists('metavars', 'foo'))
 
-            assert_false(redis:hdel('metavars', 'hoge'))
-            assert_false(redis:hdel('hashDoesNotExist', 'field'))
+            assert_false(client:hdel('metavars', 'hoge'))
+            assert_false(client:hdel('hashDoesNotExist', 'field'))
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hdel('foo', 'field')
+                client:set('foo', 'bar')
+                client:hdel('foo', 'field')
             end)
         end)
 
-        test("HLEN (redis:hlen)", function()
+        test("HLEN (client:hlen)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:hset('metavars', 'foo', 'bar'))
-            assert_true(redis:hset('metavars', 'hoge', 'piyo'))
-            assert_true(redis:hset('metavars', 'foofoo', 'barbar'))
-            assert_true(redis:hset('metavars', 'hogehoge', 'piyopiyo'))
+            assert_true(client:hset('metavars', 'foo', 'bar'))
+            assert_true(client:hset('metavars', 'hoge', 'piyo'))
+            assert_true(client:hset('metavars', 'foofoo', 'barbar'))
+            assert_true(client:hset('metavars', 'hogehoge', 'piyopiyo'))
 
-            assert_equal(redis:hlen('metavars'), 4)
-            redis:hdel('metavars', 'foo')
-            assert_equal(redis:hlen('metavars'), 3)
-            assert_equal(redis:hlen('hashDoesNotExist'), 0)
+            assert_equal(client:hlen('metavars'), 4)
+            client:hdel('metavars', 'foo')
+            assert_equal(client:hlen('metavars'), 3)
+            assert_equal(client:hlen('hashDoesNotExist'), 0)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hlen('foo')
+                client:set('foo', 'bar')
+                client:hlen('foo')
             end)
         end)
 
-        test("HSETNX (redis:hsetnx)", function()
+        test("HSETNX (client:hsetnx)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:hsetnx('metavars', 'foo', 'bar'))
-            assert_false(redis:hsetnx('metavars', 'foo', 'barbar'))
-            assert_equal(redis:hget('metavars', 'foo'), 'bar')
+            assert_true(client:hsetnx('metavars', 'foo', 'bar'))
+            assert_false(client:hsetnx('metavars', 'foo', 'barbar'))
+            assert_equal(client:hget('metavars', 'foo'), 'bar')
 
             assert_error(function()
-                redis:set('test', 'foobar')
-                redis:hsetnx('test', 'hoge', 'piyo')
+                client:set('test', 'foobar')
+                client:hsetnx('test', 'hoge', 'piyo')
             end)
         end)
 
-        test("HMSET / HMGET (redis:hmset, redis:hmget)", function()
+        test("HMSET / HMGET (client:hmset, client:hmget)", function()
             if version:is('<', '2.0.0') then return end
 
             local hashKVs = { foo = 'bar', hoge = 'piyo' }
 
             -- key => value pairs via table
-            assert_true(redis:hmset('metavars', hashKVs))
-            local retval = redis:hmget('metavars', table.keys(hashKVs))
+            assert_true(client:hmset('metavars', hashKVs))
+            local retval = client:hmget('metavars', table.keys(hashKVs))
             assert_table_values(retval, table.values(hashKVs))
 
             -- key => value pairs via function arguments
-            redis:del('metavars')
-            assert_true(redis:hmset('metavars', 'foo', 'bar', 'hoge', 'piyo'))
+            client:del('metavars')
+            assert_true(client:hmset('metavars', 'foo', 'bar', 'hoge', 'piyo'))
             assert_table_values(retval, table.values(hashKVs))
         end)
 
-        test("HINCRBY (redis:hincrby)", function()
+        test("HINCRBY (client:hincrby)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_equal(redis:hincrby('hash', 'counter', 10), 10)
-            assert_equal(redis:hincrby('hash', 'counter', 10), 20)
-            assert_equal(redis:hincrby('hash', 'counter', -20), 0)
+            assert_equal(client:hincrby('hash', 'counter', 10), 10)
+            assert_equal(client:hincrby('hash', 'counter', 10), 20)
+            assert_equal(client:hincrby('hash', 'counter', -20), 0)
 
             assert_error(function()
-                redis:hset('hash', 'field', 'string_value')
-                redis:hincrby('hash', 'field', 10)
+                client:hset('hash', 'field', 'string_value')
+                client:hincrby('hash', 'field', 10)
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hincrby('foo', 'bar', 1)
+                client:set('foo', 'bar')
+                client:hincrby('foo', 'bar', 1)
             end)
         end)
 
-        test("HINCRBYFLOAT (redis:hincrbyfloat)", function()
+        test("HINCRBYFLOAT (client:hincrbyfloat)", function()
             if version:is('<', '2.5.0') then return end
 
-            assert_equal(redis:hincrbyfloat('hash', 'counter', 10.1), 10.1)
-            assert_equal(redis:hincrbyfloat('hash', 'counter', 10.4), 20.5)
-            assert_equal(redis:hincrbyfloat('hash', 'counter', -20.000), 0.5)
+            assert_equal(client:hincrbyfloat('hash', 'counter', 10.1), 10.1)
+            assert_equal(client:hincrbyfloat('hash', 'counter', 10.4), 20.5)
+            assert_equal(client:hincrbyfloat('hash', 'counter', -20.000), 0.5)
 
             assert_error(function()
-                redis:hset('hash', 'field', 'string_value')
-                redis:hincrbyfloat('hash', 'field', 10.10)
+                client:hset('hash', 'field', 'string_value')
+                client:hincrbyfloat('hash', 'field', 10.10)
             end)
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hincrbyfloat('foo', 'bar', 1.10)
-            end)
-        end)
-
-        test("HKEYS (redis:hkeys)", function()
-            if version:is('<', '2.0.0') then return end
-
-            local hashKVs = { foo = 'bar', hoge = 'piyo' }
-            assert_true(redis:hmset('metavars', hashKVs))
-
-            assert_table_values(redis:hkeys('metavars'), table.keys(hashKVs))
-            assert_table_values(redis:hkeys('hashDoesNotExist'), { })
-
-            assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hkeys('foo')
+                client:set('foo', 'bar')
+                client:hincrbyfloat('foo', 'bar', 1.10)
             end)
         end)
 
-        test("HVALS (redis:hvals)", function()
+        test("HKEYS (client:hkeys)", function()
             if version:is('<', '2.0.0') then return end
 
             local hashKVs = { foo = 'bar', hoge = 'piyo' }
-            assert_true(redis:hmset('metavars', hashKVs))
+            assert_true(client:hmset('metavars', hashKVs))
 
-            assert_table_values(redis:hvals('metavars'), table.values(hashKVs))
-            assert_table_values(redis:hvals('hashDoesNotExist'), { })
+            assert_table_values(client:hkeys('metavars'), table.keys(hashKVs))
+            assert_table_values(client:hkeys('hashDoesNotExist'), { })
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hvals('foo')
+                client:set('foo', 'bar')
+                client:hkeys('foo')
             end)
         end)
 
-        test("HGETALL (redis:hgetall)", function()
+        test("HVALS (client:hvals)", function()
             if version:is('<', '2.0.0') then return end
 
             local hashKVs = { foo = 'bar', hoge = 'piyo' }
-            assert_true(redis:hmset('metavars', hashKVs))
+            assert_true(client:hmset('metavars', hashKVs))
 
-            assert_true(table.compare(redis:hgetall('metavars'), hashKVs))
-            assert_true(table.compare(redis:hgetall('hashDoesNotExist'), { }))
+            assert_table_values(client:hvals('metavars'), table.values(hashKVs))
+            assert_table_values(client:hvals('hashDoesNotExist'), { })
 
             assert_error(function()
-                redis:set('foo', 'bar')
-                redis:hgetall('foo')
+                client:set('foo', 'bar')
+                client:hvals('foo')
+            end)
+        end)
+
+        test("HGETALL (client:hgetall)", function()
+            if version:is('<', '2.0.0') then return end
+
+            local hashKVs = { foo = 'bar', hoge = 'piyo' }
+            assert_true(client:hmset('metavars', hashKVs))
+
+            assert_true(table.compare(client:hgetall('metavars'), hashKVs))
+            assert_true(table.compare(client:hgetall('hashDoesNotExist'), { }))
+
+            assert_error(function()
+                client:set('foo', 'bar')
+                client:hgetall('foo')
             end)
         end)
     end)
 
     context("Remote server control commands", function()
-        test("INFO (redis:info)", function()
-            local info = redis:info()
+        test("INFO (client:info)", function()
+            local info = client:info()
             assert_type(info, 'table')
             assert_not_nil(info.redis_version or info.server.redis_version)
         end)
 
-        test("CONFIG GET (redis:config)", function()
+        test("CONFIG GET (client:config)", function()
             if version:is('<', '2.0.0') then return end
 
-            local config = redis:config('get', '*')
+            local config = client:config('get', '*')
             assert_type(config, 'table')
             assert_not_nil(config['list-max-ziplist-entries'])
             if version:is('>=', '2.4.0') then
                 assert_not_nil(config.loglevel)
             end
 
-            local config = redis:config('get', '*max-*-entries*')
+            local config = client:config('get', '*max-*-entries*')
             assert_type(config, 'table')
             assert_not_nil(config['list-max-ziplist-entries'])
             if version:is('>=', '2.4.0') then
@@ -2143,39 +2143,39 @@ context("Redis commands", function()
             end
         end)
 
-        test("CONFIG SET (redis:config)", function()
+        test("CONFIG SET (client:config)", function()
             if version:is('<', '2.4.0') then return end
 
-            local new, previous = 'notice', redis:config('get', 'loglevel').loglevel
+            local new, previous = 'notice', client:config('get', 'loglevel').loglevel
 
             assert_type(previous, 'string')
 
-            assert_true(redis:config('set', 'loglevel', new))
-            assert_equal(redis:config('get', 'loglevel').loglevel, new)
+            assert_true(client:config('set', 'loglevel', new))
+            assert_equal(client:config('get', 'loglevel').loglevel, new)
 
-            assert_true(redis:config('set', 'loglevel', previous))
+            assert_true(client:config('set', 'loglevel', previous))
         end)
 
-        test("CONFIG RESETSTAT (redis:config)", function()
-            assert_true(redis:config('resetstat'))
+        test("CONFIG RESETSTAT (client:config)", function()
+            assert_true(client:config('resetstat'))
         end)
 
-        test("SLOWLOG RESET (redis:slowlog)", function()
+        test("SLOWLOG RESET (client:slowlog)", function()
             if version:is('<', '2.2.12') then return end
 
-            assert_true(redis:slowlog('reset'))
+            assert_true(client:slowlog('reset'))
         end)
 
-        test("SLOWLOG GET (redis:slowlog)", function()
+        test("SLOWLOG GET (client:slowlog)", function()
             if version:is('<', '2.2.12') then return end
 
-            local previous = redis:config('get', 'slowlog-log-slower-than')['slowlog-log-slower-than']
+            local previous = client:config('get', 'slowlog-log-slower-than')['slowlog-log-slower-than']
 
-            redis:config('set', 'slowlog-log-slower-than', 0)
-            redis:set('foo', 'bar')
-            redis:del('foo')
+            client:config('set', 'slowlog-log-slower-than', 0)
+            client:set('foo', 'bar')
+            client:del('foo')
 
-            local log = redis:slowlog('get')
+            local log = client:slowlog('get')
             assert_type(log, 'table')
             assert_greater_than(#log, 0)
 
@@ -2185,90 +2185,90 @@ context("Redis commands", function()
             assert_greater_than(log[1].duration, 0)
             assert_type(log[1].command, 'table')
 
-            local log = redis:slowlog('get', 1)
+            local log = client:slowlog('get', 1)
             assert_type(log, 'table')
             assert_equal(#log, 1)
 
-            redis:config('set', 'slowlog-log-slower-than', previous or 10000)
+            client:config('set', 'slowlog-log-slower-than', previous or 10000)
         end)
 
-        test("TIME (redis:time)", function()
+        test("TIME (client:time)", function()
             if version:is('<', '2.5.0') then return end
 
-            local redis_time = redis:time()
+            local redis_time = client:time()
             assert_type(redis_time, 'table')
             assert_not_nil(redis_time[1])
             assert_not_nil(redis_time[2])
         end)
 
-        test("CLIENT (redis:client)", function()
+        test("CLIENT (client:client)", function()
             if version:is('<', '2.4.0') then return end
             -- TODO: implement tests
         end)
 
-        test("LASTSAVE (redis:lastsave)", function()
-            assert_not_nil(redis:lastsave())
+        test("LASTSAVE (client:lastsave)", function()
+            assert_not_nil(client:lastsave())
         end)
 
-        test("FLUSHDB (redis:flushdb)", function()
-            assert_true(redis:flushdb())
+        test("FLUSHDB (client:flushdb)", function()
+            assert_true(client:flushdb())
         end)
     end)
 
     context("Transactions", function()
-        test("MULTI / EXEC (redis:multi, redis:exec)", function()
+        test("MULTI / EXEC (client:multi, client:exec)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:multi())
-            assert_response_queued(redis:ping())
-            assert_response_queued(redis:echo('hello'))
-            assert_response_queued(redis:echo('redis'))
-            assert_table_values(redis:exec(), { 'PONG', 'hello', 'redis' })
+            assert_true(client:multi())
+            assert_response_queued(client:ping())
+            assert_response_queued(client:echo('hello'))
+            assert_response_queued(client:echo('redis'))
+            assert_table_values(client:exec(), { 'PONG', 'hello', 'redis' })
 
-            assert_true(redis:multi())
-            assert_table_values(redis:exec(), {})
+            assert_true(client:multi())
+            assert_table_values(client:exec(), {})
 
             -- should raise an error when trying to EXEC without having previously issued MULTI
-            assert_error(function() redis:exec() end)
+            assert_error(function() client:exec() end)
         end)
-        test("DISCARD (redis:discard)", function()
+        test("DISCARD (client:discard)", function()
             if version:is('<', '2.0.0') then return end
 
-            assert_true(redis:multi())
-            assert_response_queued(redis:set('foo', 'bar'))
-            assert_response_queued(redis:set('hoge', 'piyo'))
-            assert_true(redis:discard())
+            assert_true(client:multi())
+            assert_response_queued(client:set('foo', 'bar'))
+            assert_response_queued(client:set('hoge', 'piyo'))
+            assert_true(client:discard())
 
             -- should raise an error when trying to EXEC after a DISCARD
-            assert_error(function() redis:exec() end)
+            assert_error(function() client:exec() end)
 
-            assert_false(redis:exists('foo'))
-            assert_false(redis:exists('hoge'))
+            assert_false(client:exists('foo'))
+            assert_false(client:exists('hoge'))
         end)
 
         test("WATCH", function()
             if version:is('<', '2.1.0') then return end
 
-            redis2 = utils.create_client(settings)
-            assert_true(redis:set('foo', 'bar'))
-            assert_true(redis:watch('foo'))
-            assert_true(redis:multi())
-            assert_response_queued(redis:get('foo'))
-            assert_true(redis2:set('foo', 'hijacked'))
-            assert_nil(redis:exec())
+            local client2 = utils.create_client(settings)
+            assert_true(client:set('foo', 'bar'))
+            assert_true(client:watch('foo'))
+            assert_true(client:multi())
+            assert_response_queued(client:get('foo'))
+            assert_true(client2:set('foo', 'hijacked'))
+            assert_nil(client:exec())
         end)
 
         test("UNWATCH", function()
             if version:is('<', '2.1.0') then return end
 
-            redis2 = utils.create_client(settings)
-            assert_true(redis:set('foo', 'bar'))
-            assert_true(redis:watch('foo'))
-            assert_true(redis:unwatch())
-            assert_true(redis:multi())
-            assert_response_queued(redis:get('foo'))
-            assert_true(redis2:set('foo', 'hijacked'))
-            assert_table_values(redis:exec(), { 'hijacked' })
+            local client2 = utils.create_client(settings)
+            assert_true(client:set('foo', 'bar'))
+            assert_true(client:watch('foo'))
+            assert_true(client:unwatch())
+            assert_true(client:multi())
+            assert_response_queued(client:get('foo'))
+            assert_true(client2:set('foo', 'hijacked'))
+            assert_table_values(client:exec(), { 'hijacked' })
         end)
 
         test("MULTI / EXEC / DISCARD abstraction", function()
@@ -2276,19 +2276,19 @@ context("Redis commands", function()
 
             local replies, processed
 
-            replies, processed = redis:transaction(function(t)
+            replies, processed = client:transaction(function(t)
                 -- empty transaction
             end)
             assert_table_values(replies, { })
             assert_equal(processed, 0)
 
-            replies, processed = redis:transaction(function(t)
+            replies, processed = client:transaction(function(t)
                 t:discard()
             end)
             assert_table_values(replies, { })
             assert_equal(processed, 0)
 
-            replies, processed = redis:transaction(function(t)
+            replies, processed = client:transaction(function(t)
                 assert_response_queued(t:set('foo', 'bar'))
                 assert_true(t:discard())
                 assert_response_queued(t:ping())
@@ -2301,13 +2301,13 @@ context("Redis commands", function()
 
             -- clean up transaction after client-side errors
             assert_error(function()
-                redis:transaction(function(t)
+                client:transaction(function(t)
                     t:lpush('metavars', 'foo')
                     error('whoops!')
                     t:lpush('metavars', 'hoge')
                 end)
             end)
-            assert_false(redis:exists('metavars'))
+            assert_false(client:exists('metavars'))
         end)
 
         test("WATCH / MULTI / EXEC abstraction", function()
@@ -2316,14 +2316,14 @@ context("Redis commands", function()
             local redis2 = utils.create_client(settings)
             local watch_keys = { 'foo' }
 
-            local replies, processed = redis:transaction(watch_keys, function(t)
+            local replies, processed = client:transaction(watch_keys, function(t)
                 -- empty transaction
             end)
             assert_table_values(replies, { })
             assert_equal(processed, 0)
 
             assert_error(function()
-                redis:transaction(watch_keys, function(t)
+                client:transaction(watch_keys, function(t)
                     t:set('foo', 'bar')
                     redis2:set('foo', 'hijacked')
                     t:get('foo')
@@ -2337,14 +2337,14 @@ context("Redis commands", function()
             local opts, replies, processed
 
             opts = { cas = 'foo' }
-            replies, processed = redis:transaction(opts, function(t)
+            replies, processed = client:transaction(opts, function(t)
                 -- empty transaction (with missing call to t:multi())
             end)
             assert_table_values(replies, { })
             assert_equal(processed, 0)
 
             opts = { watch = 'foo', cas = true }
-            replies, processed = redis:transaction(opts, function(t)
+            replies, processed = client:transaction(opts, function(t)
                 t:multi()
                 -- empty transaction
             end)
@@ -2354,7 +2354,7 @@ context("Redis commands", function()
             local redis2 = utils.create_client(settings)        
             local n = 5
             opts = { watch = 'foobarr', cas = true, retry = 5 }
-            replies, processed = redis:transaction(opts, function(t)
+            replies, processed = client:transaction(opts, function(t)
                 t:set('foobar', 'bazaar')
                 local val = t:get('foobar')
                 t:multi()
@@ -2384,85 +2384,85 @@ context("Redis commands", function()
             local tx_empty = function(t) end
             local tx_cas_empty = function(t) t:multi() end
 
-            replies, processed = redis:transaction(tx_empty)
+            replies, processed = client:transaction(tx_empty)
             assert_table_values(replies, { })
 
             assert_error(function()
-                redis:transaction(opts, tx_empty)
+                client:transaction(opts, tx_empty)
             end)
 
             opts = 'foo'
-            replies, processed = redis:transaction(opts, tx_empty)
+            replies, processed = client:transaction(opts, tx_empty)
             assert_table_values(replies, { })
             assert_equal(processed, 0)
 
             opts = { 'foo', 'bar' }
-            replies, processed = redis:transaction(opts, tx_empty)
+            replies, processed = client:transaction(opts, tx_empty)
             assert_equal(processed, 0)
 
             opts = { watch = 'foo' }
-            replies, processed = redis:transaction(opts, tx_empty)
+            replies, processed = client:transaction(opts, tx_empty)
             assert_equal(processed, 0)
 
             opts = { watch = { 'foo', 'bar' } }
-            replies, processed = redis:transaction(opts, tx_empty)
+            replies, processed = client:transaction(opts, tx_empty)
             assert_equal(processed, 0)
 
             opts = { cas = true }
-            replies, processed = redis:transaction(opts, tx_cas_empty)
+            replies, processed = client:transaction(opts, tx_cas_empty)
             assert_equal(processed, 0)
 
             opts = { 'foo', 'bar', cas = true }
-            replies, processed = redis:transaction(opts, tx_cas_empty)
+            replies, processed = client:transaction(opts, tx_cas_empty)
             assert_equal(processed, 0)
 
             opts = { 'foo', nil, 'bar', cas = true }
-            replies, processed = redis:transaction(opts, tx_cas_empty)
+            replies, processed = client:transaction(opts, tx_cas_empty)
             assert_equal(processed, 0)
 
             opts = { watch = { 'foo', 'bar' }, cas = true }
-            replies, processed = redis:transaction(opts, tx_cas_empty)
+            replies, processed = client:transaction(opts, tx_cas_empty)
             assert_equal(processed, 0)
 
             opts = { nil, cas = true }
-            replies, processed = redis:transaction(opts, tx_cas_empty)
+            replies, processed = client:transaction(opts, tx_cas_empty)
             assert_equal(processed, 0)
         end)
     end)
 
     context("Pub/Sub", function()
-        test('PUBLISH (redis:publish)', function()
-            assert_equal(redis:publish('redis-lua-publish', 'test'), 0)
+        test('PUBLISH (client:publish)', function()
+            assert_equal(client:publish('redis-lua-publish', 'test'), 0)
         end)
 
-        test('SUBSCRIBE (redis:subscribe)', function()
-            redis:subscribe('redis-lua-publish')
+        test('SUBSCRIBE (client:subscribe)', function()
+            client:subscribe('redis-lua-publish')
 
             -- we have one subscriber
             data = 'data' .. tostring(math.random(1000))
-            redis_pub = utils.create_client(settings)
-            assert_equal(redis_pub:publish('redis-lua-publish', data), 1)
+            publisher = utils.create_client(settings)
+            assert_equal(publisher:publish('redis-lua-publish', data), 1)
             -- we have data
-            response = redis:subscribe('redis-lua-publish')
+            response = client:subscribe('redis-lua-publish')
             -- {"message","redis-lua-publish","testXXX"}
             assert_true(table.contains(response, 'message'))
             assert_true(table.contains(response, 'redis-lua-publish'))
             assert_true(table.contains(response, data))
 
-            redis:unsubscribe('redis-lua-publish')
+            client:unsubscribe('redis-lua-publish')
         end)
     end)
 
     context("Scripting", function()
-        test('EVAL (redis:eval)', function()
+        test('EVAL (client:eval)', function()
             if version:is('<', '2.5.0') then return end
         end)
 
-        test('EVALSHA (redis:evalsha)', function()
+        test('EVALSHA (client:evalsha)', function()
             if version:is('<', '2.5.0') then return end
         end)
 
-        test('SCRIPT (redis:script)', function()
+        test('SCRIPT (client:script)', function()
             if version:is('<', '2.5.0') then return end
         end)
     end)
