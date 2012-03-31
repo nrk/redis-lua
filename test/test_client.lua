@@ -2157,35 +2157,8 @@ context("Redis commands", function()
             -- TODO: implement tests
         end)
 
-        test("SLAVEOF (redis:slaveof)", function()
-            local master_host, master_port = 'www.google.com', 80
-
-            assert_true(redis:slaveof(master_host, master_port))
-            local info = redis:info()
-            assert_equal(info.role or info.replication.role, 'slave')
-            assert_equal(info.master_host or info.replication.master_host, master_host)
-            assert_equal(info.master_port or info.replication.master_port, tostring(master_port))
-
-            -- SLAVE OF NO ONE (explicit)
-            assert_true(redis:slaveof('NO', 'ONE'))
-            local info = redis:info()
-            assert_equal(info.role or info.replication.role, 'master')
-        end)
-
-        test("SAVE (redis:save)", function()
-            assert_true(redis:save())
-        end)
-
-        test("BGSAVE (redis:bgsave)", function()
-            assert_equal(redis:bgsave(), 'Background saving started')
-        end)
-
-        test("BGREWRITEAOF (redis:bgrewriteaof)", function()
-            assert_match('Background append only file rewriting %w+', redis:bgrewriteaof())
-        end)
-
         test("LASTSAVE (redis:lastsave)", function()
-            assert_greater_than(tonumber(redis:lastsave()), 0)
+            assert_not_nil(redis:lastsave())
         end)
 
         test("FLUSHDB (redis:flushdb)", function()
