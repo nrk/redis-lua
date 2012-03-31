@@ -1052,6 +1052,7 @@ commands = {
     lastsave         = command('LASTSAVE'),
     flushdb          = command('FLUSHDB'),
     flushall         = command('FLUSHALL'),
+    time             = command('TIME'),         -- >= 2.6
     shutdown         = command('SHUTDOWN', {
         request = fire_and_forget
     }),

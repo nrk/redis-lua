@@ -2192,6 +2192,15 @@ context("Redis commands", function()
             redis:config('set', 'slowlog-log-slower-than', previous or 10000)
         end)
 
+        test("TIME (redis:time)", function()
+            if version:is('<', '2.5.0') then return end
+
+            local redis_time = redis:time()
+            assert_type(redis_time, 'table')
+            assert_not_nil(redis_time[1])
+            assert_not_nil(redis_time[2])
+        end)
+
         test("CLIENT (redis:client)", function()
             if version:is('<', '2.4.0') then return end
             -- TODO: implement tests
