@@ -1,4 +1,4 @@
-package.path = package.path .. ";../src/?.lua"
+package.path = "../src/?.lua;src/?.lua;" .. package.path
 
 local redis = require 'redis'
 
