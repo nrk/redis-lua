@@ -1,3 +1,12 @@
+v2.0.3 (2012-xx-xx)
+  * Implemented all the new commands of Redis 2.6.
+
+  * Implemented `CONFIG GET`, `CONFIG SET`, `CONFIG RESETSTAT` and `SLOWLOG`.
+
+  * Changed to using an error function per client instead of a global one.
+
+  * Fixed the parsing of INFO replies returned by Redis 2.6.
+
 v2.0.2 (2011-06-20)
   * Added an abstraction for PUB/SUB that makes possible to consume messages
     pushed to channels using a coroutine-based iterator.
