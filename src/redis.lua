@@ -958,12 +958,8 @@ commands = {
     brpoplpush       = command('BRPOPLPUSH'),   -- >= 2.2
 
     -- commands operating on sets
-    sadd             = command('SADD', {
-        response = toboolean
-    }),
-    srem             = command('SREM', {
-        response = toboolean
-    }),
+    sadd             = command('SADD'),
+    srem             = command('SREM'),
     spop             = command('SPOP'),
     smove            = command('SMOVE', {
         response = toboolean
@@ -982,13 +978,9 @@ commands = {
     srandmember      = command('SRANDMEMBER'),
 
     -- commands operating on sorted sets
-    zadd             = command('ZADD', {
-        response = toboolean
-    }),
+    zadd             = command('ZADD'),
     zincrby          = command('ZINCRBY'),
-    zrem             = command('ZREM', {
-        response = toboolean
-    }),
+    zrem             = command('ZREM'),
     zrange           = command('ZRANGE', {
         request  = zset_range_request,
         response = zset_range_reply,
@@ -1044,9 +1036,7 @@ commands = {
             table.insert(args, v)
         end),
     }),
-    hdel             = command('HDEL', {        -- >= 2.0
-        response = toboolean
-    }),
+    hdel             = command('HDEL'),        -- >= 2.0
     hexists          = command('HEXISTS', {     -- >= 2.0
         response = toboolean
     }),
