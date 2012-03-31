@@ -1,4 +1,15 @@
-module('Redis', package.seeall)
+-- module('Redis')
+
+local redis = {
+    _VERSION     = 'redis-lua 2.0.3',
+    _DESCRIPTION = 'A Lua client library for the redis key value storage system.',
+    _COPYRIGHT   = 'Copyright (C) 2009-2012 Daniele Alessandri',
+}
+
+-- The following line is used for backwards compatibility in order to keep the `Redis`
+-- global module name. Using `Redis` is now deprecated so you should explicitly assign
+-- the module to a local variable when requiring it: `local redis = require('redis')`.
+Redis = redis
 
 local commands, network, request, response = {}, {}, {}, {}
 
@@ -180,23 +191,23 @@ local function parse_info(response)
 end
 
 local function load_methods(proto, methods)
-    local redis = setmetatable ({}, getmetatable(proto))
-    for i, v in pairs(proto) do redis[i] = v end
-    for i, v in pairs(methods) do redis[i] = v end
-    return redis
+    local client = setmetatable ({}, getmetatable(proto))
+    for i, v in pairs(proto) do client[i] = v end
+    for i, v in pairs(methods) do client[i] = v end
+    return client
 end
 
 local function create_client(proto, client_socket, methods)
-    local redis = load_methods(proto, methods)
-    redis.network = {
+    local client = load_methods(proto, methods)
+    client.network = {
         socket = client_socket,
         read   = network.read,
         write  = network.write,
     }
-    redis.requests = {
+    client.requests = {
         multibulk = request.multibulk,
     }
-    return redis
+    return client
 end
 
 -- ############################################################################
@@ -370,16 +381,8 @@ local define_command_impl = function(target, name, opts)
     )
 end
 
-function define_command(name, opts)
-    define_command_impl(commands, name, opts)
-end
-
 local undefine_command_impl = function(target, name)
     target[string.lower(name)] = nil
-end
-
-function undefine_command(name)
-    undefine_command_impl(commands, name)
 end
 
 -- ############################################################################
@@ -701,7 +704,9 @@ local function create_connection(parameters)
     return perform_connection(socket(), parameters)
 end
 
-function connect(...)
+-- ############################################################################
+
+function redis.connect(...)
     local args, parameters = {...}, nil
 
     if #args == 1 then
@@ -733,6 +738,18 @@ function connect(...)
     client.error = default_error_fn
 
     return client
+end
+
+function redis.command(cmd, opts)
+    return command(cmd, opts)
+end
+
+function redis.define_command(name, opts)
+    define_command_impl(commands, name, opts)
+end
+
+function redis.undefine_command(name)
+    undefine_command_impl(commands, name)
 end
 
 -- ############################################################################
@@ -1078,3 +1095,7 @@ commands = {
         response = parse_info,
     }),
 }
+
+-- ############################################################################
+
+return redis

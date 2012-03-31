@@ -1,16 +1,16 @@
 package.path = package.path .. ";../src/?.lua"
 
-require 'redis'
+local redis = require 'redis'
 
 local params = {
     host = '127.0.0.1',
     port = 6379,
 }
 
-local redis = Redis.connect(params)
-redis:select(15) -- for testing purposes
+local client = redis.connect(params)
+client:select(15) -- for testing purposes
 
-local replies = redis:pipeline(function(p)
+local replies = client:pipeline(function(p)
     p:ping()
     p:flushdb()
     p:exists('counter')

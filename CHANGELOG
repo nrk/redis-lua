@@ -1,4 +1,10 @@
 v2.0.3 (2012-xx-xx)
+  * It is now possible to require redis-lua by assigning the returned module
+    to a local variable like `local redis = require 'redis'`. Starting with
+    this release this is the preferred way to require redis-lua. The `Redis`
+    global name is still available for backwards compatibility but it will
+    be removed in the next major version.
+
   * Implemented all the new commands of Redis 2.6.
 
   * Implemented `CONFIG GET`, `CONFIG SET`, `CONFIG RESETSTAT` and `SLOWLOG`.

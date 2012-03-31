@@ -1,24 +1,24 @@
 package.path = package.path .. ";../src/?.lua"
 
-require 'redis'
+local redis = require 'redis'
 
 local params = {
     host = '127.0.0.1',
     port = 6379,
 }
 
-local redis = Redis.connect(params)
-redis:select(15) -- for testing purposes
+local client = redis.connect(params)
+client:select(15) -- for testing purposes
 
-local replies = redis:transaction(function(t)
+local replies = client:transaction(function(t)
     t:incrby('counter', 10)
     t:incrby('counter', 30)
     t:decrby('counter', 15)
 end)
 
 -- check-and-set (CAS)
-redis:set('foo', 'bar')
-local replies = redis:transaction({ watch = 'foo', cas = true }, function(t)
+client:set('foo', 'bar')
+local replies = client:transaction({ watch = 'foo', cas = true }, function(t)
     --executed after WATCH but before MULTI
     local val = t:get('foo')
     t:multi()

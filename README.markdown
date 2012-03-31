@@ -16,40 +16,48 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 
 ### Include redis-lua in your script ###
 
+Just require the `redis` module assigning it to a variable:
+
 ``` lua
-require 'redis'
+local redis = require 'redis'
 ```
+
+Previous versions of the library defined a global `Redis` alias as soon as the module was
+imported by the user. This global alias is still defined but it is considered deprecated
+and it will be removed in the next major version.
 
 ### Connect to a redis-server instance and send a PING command ###
 
 ``` lua
-local redis = Redis.connect('127.0.0.1', 6379)
-local response = redis:ping()           -- true
+local redis = require 'redis'
+local client = redis.connect('127.0.0.1', 6379)
+local response = client:ping()           -- true
 ```
 
 It is also possible to connect to a local redis instance using __UNIX domain sockets__
 if LuaSocket has been compiled with them enabled (unfortunately it is not the default):
 
 ``` lua
-local redis = Redis.connect('unix:///tmp/redis.sock')
+local redis = require 'redis'
+local client = redis.connect('unix:///tmp/redis.sock')
 ```
 
 ### Set keys and get their values ###
 
 ``` lua
-redis:set('usr:nrk', 10)
-redis:set('usr:nobody', 5)
-local value = redis:get('usr:nrk')      -- 10
+client:set('usr:nrk', 10)
+client:set('usr:nobody', 5)
+local value = client:get('usr:nrk')      -- 10
 ```
 
 ### Sort list values by using various parameters supported by the server ###
 
 ``` lua
 for _,v in ipairs({ 10,3,2,6,1,4,23 }) do
-    redis:rpush('usr:nrk:ids',v)
+    client:rpush('usr:nrk:ids',v)
 end
 
-local sorted = redis:sort('usr:nrk:ids', {
+local sorted = client:sort('usr:nrk:ids', {
      sort = 'asc', alpha = true, limit = { 1, 5 }
 })      -- {1=10,2=2,3=23,4=3,5=4}
 ```
@@ -57,7 +65,7 @@ local sorted = redis:sort('usr:nrk:ids', {
 ### Pipeline commands
 
 ``` lua
-local replies = redis:pipeline(function(p)
+local replies = client:pipeline(function(p)
     p:incrby('counter', 10)
     p:incrby('counter', 30)
     p:get('counter')
@@ -67,7 +75,7 @@ end)
 ### Leverage Redis MULTI / EXEC transaction (Redis > 2.0)
 
 ``` lua
-local replies = redis:transaction(function(t)
+local replies = client:transaction(function(t)
     t:incrby('counter', 10)
     t:incrby('counter', 30)
     t:get('counter')
@@ -78,7 +86,7 @@ end)
 
 ``` lua
 local options = { watch = "key_to_watch", cas = true, retry = 2 }
-local replies = redis:transaction(options, function(t)
+local replies = client:transaction(options, function(t)
     local val = t:get("key_to_watch")
     t:multi()
     t:set("akey", val)
@@ -89,7 +97,7 @@ end)
 ### Get useful information from the server ###
 
 ``` lua
-for k,v in pairs(redis:info()) do
+for k,v in pairs(client:info()) do
     print(k .. ' => ' .. tostring(v))
 end
 --[[

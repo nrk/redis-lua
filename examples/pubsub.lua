@@ -1,14 +1,14 @@
 package.path = package.path .. ";../src/?.lua"
 
-require 'redis'
+local redis = require 'redis'
 
 local params = {
     host = '127.0.0.1',
     port = 6379,
 }
 
-local redis = Redis.connect(params)
-redis:select(15) -- for testing purposes
+local client = redis.connect(params)
+client:select(15) -- for testing purposes
 
 local channels = { 'control_channel', 'notifications' }
 
@@ -17,7 +17,7 @@ local channels = { 'control_channel', 'notifications' }
 --   ./redis-cli PUBLISH notifications "this is a test"
 --   ./redis-cli PUBLISH control_channel quit_loop
 
-for msg, abort in redis:pubsub({ subscribe = channels }) do
+for msg, abort in client:pubsub({ subscribe = channels }) do
     if msg.kind == 'subscribe' then
         print('Subscribed to channel '..msg.channel)
     elseif msg.kind == 'message' then
