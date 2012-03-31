@@ -75,8 +75,41 @@ function table.compare(self, other)
 end
 
 function parse_version(version_str)
-    local info, pattern = {}, "^(%d+)%.(%d+)%.(%d+)%-?(%w-)$"
-    local major, minor, patch, status,ff = version_str:match(pattern)
+    local major, minor, patch, status = version_str:match('^(%d+)%.(%d+)%.(%d+)%-?(%w-)$')
+
+    local info = {
+        string  = version_str,
+        compare =  function(self, other)
+            if type(other) == 'string' then
+                other = parse_version(other)
+            end
+            if self.unrecognized or other.unrecognized then
+                error('Cannot compare versions')
+            end
+
+            for _, part in ipairs({ 'major', 'minor', 'patch' }) do
+                if self[part] < other[part] then
+                    return -1
+                end
+                if self[part] > other[part] then
+                    return 1
+                end
+            end
+
+            return 0
+        end,
+        is = function(self, op, other)
+            local comparation = self:compare(other);
+            if op == '<' then return comparation < 0 end
+            if op == '<=' then return comparation <= 0 end
+            if op == '=' then return comparation == 0 end
+            if op == '>=' then return comparation >= 0 end
+            if op == '>' then return comparation > 0 end
+
+            error('Invalid comparison operator: '..op)
+        end,
+    }
+
     if major and minor and patch then
         info.major  = tonumber(major)
         info.minor  = tonumber(minor)
@@ -87,6 +120,7 @@ function parse_version(version_str)
     else
         info.unrecognized = true
     end
+
     return info
 end
 
@@ -103,8 +137,9 @@ local utils = {
 
         local info = redis:info()
         local version = parse_version(info.redis_version or info.server.redis_version)
-        if version.major < 1 or (version.major == 1 and version.minor < 2) then
-            error("redis-lua does not support Redis < 1.2.0 (current: "..info.redis_version..")")
+
+        if version:is('<', '1.2.0') then
+            error("redis-lua does not support Redis < 1.2.0 (current: "..version.string..")")
         end
 
         return redis, version
@@ -381,7 +416,7 @@ context("Redis commands", function()
             redis:zadd('fooZSet', 0, 'bar')
             assert_equal(redis:type('fooZSet'), 'zset')
 
-            if version.major > 1 then
+            if version:is('>=', '2.0.0') then
                 redis:hset('fooHash', 'value', 'bar')
                 assert_equal('hash', redis:type('fooHash'))
             end
@@ -441,7 +476,7 @@ context("Redis commands", function()
         end)
 
         test("PTTL (redis:pttl)", function()
-            if version.major >= 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
 
             redis:set('foo', 'bar')
             assert_equal(redis:pttl('foo'), -1)
@@ -470,7 +505,7 @@ context("Redis commands", function()
         end)
 
         test("PEXPIRE (redis:pexpire)", function()
-            if version.major >= 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
 
             local ttl = 1
             redis:set('foo', 'bar')
@@ -495,7 +530,7 @@ context("Redis commands", function()
         end)
 
         test("PEXPIREAT (redis:pexpireat)", function()
-            if version.major >= 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
 
             local ttl = 2
             redis:set('foo', 'bar')
@@ -533,7 +568,7 @@ context("Redis commands", function()
         end)
 
         test("PERSIST (redis:persist)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             redis:set('foo', 'bar')
 
@@ -633,7 +668,7 @@ context("Redis commands", function()
         end)
 
         test("SETEX (redis:setex)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:setex('foo', 10, 'bar'))
             assert_true(redis:exists('foo'))
@@ -649,7 +684,7 @@ context("Redis commands", function()
         end)
 
         test("PSETEX (redis:psetex)", function()
-            if version.major >= 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
 
             local ttl = 10 * 1000
             assert_true(redis:psetex('foo', ttl, 'bar'))
@@ -706,7 +741,8 @@ context("Redis commands", function()
             assert_equal(redis:incr('foo'), 2)
 
             assert_true(redis:set('hoge', 'piyo'))
-            if version.major < 2 then
+
+            if version:is('<', '2.0.0') then
                 assert_equal(redis:incr('hoge'), 1)
             else
                 assert_error(function()
@@ -723,7 +759,7 @@ context("Redis commands", function()
         end)
 
         test("INCRBYFLOAT (redis:incrbyfloat)", function()
-            if version.major >= 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
 
             redis:set('foo', 2)
             assert_equal(redis:incrbyfloat('foo', 20.123), 22.123)
@@ -736,7 +772,7 @@ context("Redis commands", function()
             assert_equal(redis:decr('foo'), -2)
 
             assert_true(redis:set('hoge', 'piyo'))
-            if version.major < 2 then
+            if version:is('<', '2.0.0') then
                 assert_equal(redis:decr('hoge'), -1)
             else
                 assert_error(function()
@@ -753,7 +789,7 @@ context("Redis commands", function()
         end)
 
         test("APPEND (redis:append)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             redis:set('foo', 'bar')
             assert_equal(redis:append('foo', '__'), 5)
@@ -770,7 +806,7 @@ context("Redis commands", function()
         end)
 
         test("SUBSTR (redis:substr)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             redis:set('var', 'foobar')
             assert_equal(redis:substr('var', 0, 2), 'foo')
@@ -789,7 +825,7 @@ context("Redis commands", function()
         end)
 
         test("STRLEN (redis:strlen)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             redis:set('var', 'foobar')
             assert_equal(redis:strlen('var'), 6)
@@ -803,7 +839,7 @@ context("Redis commands", function()
         end)
 
         test("SETRANGE (redis:setrange)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             assert_equal(redis:setrange('var', 0, 'foobar'), 6)
             assert_equal(redis:get('var'), 'foobar')
@@ -823,7 +859,7 @@ context("Redis commands", function()
         end)
 
         test("GETRANGE (redis:getrange)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             redis:set('var', 'foobar')
             assert_equal(redis:getrange('var', 0, 2), 'foo')
@@ -842,7 +878,7 @@ context("Redis commands", function()
         end)
 
         test("SETBIT (redis:setbit)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             assert_equal(redis:setbit('binary', 31, 1), 0)
             assert_equal(redis:setbit('binary', 0, 1), 0)
@@ -880,7 +916,7 @@ context("Redis commands", function()
         end)
 
         test("GETBIT (redis:getbit)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             redis:set('binary', "\128\0\0\1")
 
@@ -906,7 +942,7 @@ context("Redis commands", function()
 
     context("Commands operating on lists", function()
         test("RPUSH (redis:rpush)", function()
-            if version.major < 2 then
+            if version:is('<', '2.0.0') then
                 assert_true(redis:rpush('metavars', 'foo'))
                 assert_true(redis:rpush('metavars', 'hoge'))
             else
@@ -920,7 +956,7 @@ context("Redis commands", function()
         end)
 
         test("RPUSHX (redis:rpushx)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             assert_equal(redis:rpushx('numbers', 1), 0)
             assert_equal(redis:rpush('numbers', 2), 1)
@@ -935,7 +971,7 @@ context("Redis commands", function()
         end)
 
         test("LPUSH (redis:lpush)", function()
-            if version.major < 2 then
+            if version:is('<', '2.0.0') then
                 assert_true(redis:lpush('metavars', 'foo'))
                 assert_true(redis:lpush('metavars', 'hoge'))
             else
@@ -949,7 +985,7 @@ context("Redis commands", function()
         end)
 
         test("LPUSHX (redis:lpushx)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             assert_equal(redis:lpushx('numbers', 1), 0)
             assert_equal(redis:lpush('numbers', 2), 1)
@@ -1152,22 +1188,22 @@ context("Redis commands", function()
         end)
 
         test("BLPOP (redis:blpop)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
             -- TODO: implement tests
         end)
 
         test("BRPOP (redis:brpop)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
             -- TODO: implement tests
         end)
 
         test("BRPOPLPUSH (redis:brpoplpush)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
             -- TODO: implement tests
         end)
 
         test("LINSERT (redis:linsert)", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             utils.rpush_return(redis, 'numbers', shared.numbers(), true)
 
@@ -1281,7 +1317,7 @@ context("Redis commands", function()
 
             assert_table_values(redis:smembers('set'), set)
 
-            if version.major < 2 then
+            if version:is('<', '2.0.0') then
                 assert_nil(redis:smembers('doesnotexist'))
             else
                 assert_table_values(redis:smembers('doesnotexist'), {})
@@ -1300,7 +1336,7 @@ context("Redis commands", function()
             assert_table_values(redis:sinter('setA'), setA)
             assert_table_values(redis:sinter('setA', 'setB'), { '3', '4', '6', '1' })
 
-            if version.major < 2 then
+            if version:is('<', '2.0.0') then
                 assert_nil(redis:sinter('setA', 'doesnotexist'))
             else
                 assert_table_values(redis:sinter('setA', 'doesnotexist'), {})
@@ -1383,7 +1419,7 @@ context("Redis commands", function()
 
             redis:del('setC')
             assert_equal(redis:sunionstore('setC', 'doesnotexist'), 0)
-            if version.major < 2 then
+            if version:is('<', '2.0.0') then
                 assert_true(redis:exists('setC'))
             else
                 assert_false(redis:exists('setC'))
@@ -1432,7 +1468,7 @@ context("Redis commands", function()
 
             redis:del('setC')
             assert_equal(redis:sdiffstore('setC', 'doesnotexist'), 0)
-            if version.major < 2 then
+            if version:is('<', '2.0.0') then
                 assert_true(redis:exists('setC'))
             else
                 assert_false(redis:exists('setC'))
@@ -1647,7 +1683,7 @@ context("Redis commands", function()
 
 
         test("ZUNIONSTORE (redis:zunionstore)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             utils.zadd_return(redis, 'zseta', { a = 1, b = 2, c = 3 })
             utils.zadd_return(redis, 'zsetb', { b = 1, c = 2, d = 3 })
@@ -1704,7 +1740,7 @@ context("Redis commands", function()
         end)
 
         test("ZINTERSTORE (redis:zinterstore)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             utils.zadd_return(redis, 'zseta', { a = 1, b = 2, c = 3 })
             utils.zadd_return(redis, 'zsetb', { b = 1, c = 2, d = 3 })
@@ -1751,7 +1787,7 @@ context("Redis commands", function()
         end)
 
         test("ZCOUNT (redis:zcount)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             utils.zadd_return(redis, 'zset', shared.zset_sample())
 
@@ -1826,7 +1862,7 @@ context("Redis commands", function()
         end)
 
         test("ZRANK (redis:zrank)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             utils.zadd_return(redis, 'zset', shared.zset_sample())
 
@@ -1846,7 +1882,7 @@ context("Redis commands", function()
         end)
 
         test("ZREVRANK (redis:zrevrank)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             utils.zadd_return(redis, 'zset', shared.zset_sample())
 
@@ -1866,7 +1902,7 @@ context("Redis commands", function()
         end)
 
         test("ZREMRANGEBYRANK (redis:zremrangebyrank)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             utils.zadd_return(redis, 'zseta', shared.zset_sample())
             assert_equal(redis:zremrangebyrank('zseta', 0, 2), 3)
@@ -1894,7 +1930,7 @@ context("Redis commands", function()
 
     context("Commands operating on hashes", function()
         test("HSET (redis:hset)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:hset('metavars', 'foo', 'bar'))
             assert_true(redis:hset('metavars', 'hoge', 'piyo'))
@@ -1908,7 +1944,7 @@ context("Redis commands", function()
         end)
 
         test("HGET (redis:hget)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:hset('metavars', 'foo', 'bar'))
             assert_equal(redis:hget('metavars', 'foo'), 'bar')
@@ -1922,7 +1958,7 @@ context("Redis commands", function()
         end)
 
         test("HEXISTS (redis:hexists)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:hset('metavars', 'foo', 'bar'))
             assert_true(redis:hexists('metavars', 'foo'))
@@ -1936,7 +1972,7 @@ context("Redis commands", function()
         end)
 
         test("HDEL (redis:hdel)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:hset('metavars', 'foo', 'bar'))
             assert_true(redis:hexists('metavars', 'foo'))
@@ -1953,7 +1989,7 @@ context("Redis commands", function()
         end)
 
         test("HLEN (redis:hlen)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:hset('metavars', 'foo', 'bar'))
             assert_true(redis:hset('metavars', 'hoge', 'piyo'))
@@ -1972,7 +2008,7 @@ context("Redis commands", function()
         end)
 
         test("HSETNX (redis:hsetnx)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:hsetnx('metavars', 'foo', 'bar'))
             assert_false(redis:hsetnx('metavars', 'foo', 'barbar'))
@@ -1985,7 +2021,7 @@ context("Redis commands", function()
         end)
 
         test("HMSET / HMGET (redis:hmset, redis:hmget)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             local hashKVs = { foo = 'bar', hoge = 'piyo' }
 
@@ -2001,7 +2037,7 @@ context("Redis commands", function()
         end)
 
         test("HINCRBY (redis:hincrby)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_equal(redis:hincrby('hash', 'counter', 10), 10)
             assert_equal(redis:hincrby('hash', 'counter', 10), 20)
@@ -2019,7 +2055,7 @@ context("Redis commands", function()
         end)
 
         test("HINCRBYFLOAT (redis:hincrbyfloat)", function()
-            if version.major >= 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
 
             assert_equal(redis:hincrbyfloat('hash', 'counter', 10.1), 10.1)
             assert_equal(redis:hincrbyfloat('hash', 'counter', 10.4), 20.5)
@@ -2037,7 +2073,7 @@ context("Redis commands", function()
         end)
 
         test("HKEYS (redis:hkeys)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             local hashKVs = { foo = 'bar', hoge = 'piyo' }
             assert_true(redis:hmset('metavars', hashKVs))
@@ -2052,7 +2088,7 @@ context("Redis commands", function()
         end)
 
         test("HVALS (redis:hvals)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             local hashKVs = { foo = 'bar', hoge = 'piyo' }
             assert_true(redis:hmset('metavars', hashKVs))
@@ -2067,7 +2103,7 @@ context("Redis commands", function()
         end)
 
         test("HGETALL (redis:hgetall)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             local hashKVs = { foo = 'bar', hoge = 'piyo' }
             assert_true(redis:hmset('metavars', hashKVs))
@@ -2090,21 +2126,25 @@ context("Redis commands", function()
         end)
 
         test("CONFIG GET (redis:config)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             local config = redis:config('get', '*')
             assert_type(config, 'table')
-            assert_not_nil(config.loglevel)
             assert_not_nil(config['list-max-ziplist-entries'])
+            if version:is('>=', '2.4.0') then
+                assert_not_nil(config.loglevel)
+            end
 
             local config = redis:config('get', '*max-*-entries*')
             assert_type(config, 'table')
-            assert_nil(config.loglevel)
             assert_not_nil(config['list-max-ziplist-entries'])
+            if version:is('>=', '2.4.0') then
+                assert_nil(config.loglevel)
+            end
         end)
 
         test("CONFIG SET (redis:config)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.4.0') then return end
 
             local new, previous = 'notice', redis:config('get', 'loglevel').loglevel
 
@@ -2121,13 +2161,13 @@ context("Redis commands", function()
         end)
 
         test("SLOWLOG RESET (redis:slowlog)", function()
-            if version.major >= 2 and version.minor < 2 then return end
+            if version:is('<', '2.2.12') then return end
 
             assert_true(redis:slowlog('reset'))
         end)
 
         test("SLOWLOG GET (redis:slowlog)", function()
-            if version.major >= 2 and version.minor < 2 then return end
+            if version:is('<', '2.2.12') then return end
 
             local previous = redis:config('get', 'slowlog-log-slower-than')['slowlog-log-slower-than']
 
@@ -2153,7 +2193,7 @@ context("Redis commands", function()
         end)
 
         test("CLIENT (redis:client)", function()
-            if version.major >= 2 and version.minor < 3 then return end
+            if version:is('<', '2.4.0') then return end
             -- TODO: implement tests
         end)
 
@@ -2168,7 +2208,7 @@ context("Redis commands", function()
 
     context("Transactions", function()
         test("MULTI / EXEC (redis:multi, redis:exec)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:multi())
             assert_response_queued(redis:ping())
@@ -2183,7 +2223,7 @@ context("Redis commands", function()
             assert_error(function() redis:exec() end)
         end)
         test("DISCARD (redis:discard)", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             assert_true(redis:multi())
             assert_response_queued(redis:set('foo', 'bar'))
@@ -2198,7 +2238,7 @@ context("Redis commands", function()
         end)
 
         test("WATCH", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             redis2 = utils.create_client(settings)
             assert_true(redis:set('foo', 'bar'))
@@ -2210,7 +2250,7 @@ context("Redis commands", function()
         end)
 
         test("UNWATCH", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             redis2 = utils.create_client(settings)
             assert_true(redis:set('foo', 'bar'))
@@ -2223,7 +2263,7 @@ context("Redis commands", function()
         end)
 
         test("MULTI / EXEC / DISCARD abstraction", function()
-            if version.major < 2 then return end
+            if version:is('<', '2.0.0') then return end
 
             local replies, processed
 
@@ -2262,7 +2302,7 @@ context("Redis commands", function()
         end)
 
         test("WATCH / MULTI / EXEC abstraction", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             local redis2 = utils.create_client(settings)
             local watch_keys = { 'foo' }
@@ -2283,7 +2323,7 @@ context("Redis commands", function()
         end)
 
         test("WATCH / MULTI / EXEC with check-and-set (CAS) abstraction", function()
-            if version.major >= 2 and version.minor < 1 then return end
+            if version:is('<', '2.1.0') then return end
 
             local opts, replies, processed
 
@@ -2406,15 +2446,15 @@ context("Redis commands", function()
 
     context("Scripting", function()
         test('EVAL (redis:eval)', function()
-            if version.major < 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
         end)
 
         test('EVALSHA (redis:evalsha)', function()
-            if version.major < 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
         end)
 
         test('SCRIPT (redis:script)', function()
-            if version.major < 2 and version.minor <= 4 then return end
+            if version:is('<', '2.5.0') then return end
         end)
     end)
 end)
