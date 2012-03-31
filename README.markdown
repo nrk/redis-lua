@@ -72,6 +72,23 @@ local replies = client:pipeline(function(p)
 end)
 ```
 
+### Variadic commands
+
+Some commands such as RPUSH, SADD, SINTER and others have been improved in Redis 2.4
+to accept a list of values or keys depending on the nature of the command. Sometimes
+it can be useful to pass these arguments as a list in a table, but since redis-lua does
+not currently do anything to handle such a case you can use `unpack()` albeit with a
+limitation on the maximum number of items which is defined in Lua by LUAI_MAXCSTACK
+(the default on Lua 5.1 is set to `8000`, see `luaconf.h`):
+
+```lua
+local values = { 'value1', 'value2', 'value3' }
+client:rpush('list', unpack(values))
+
+-- the previous line has the same effect of the following one:
+client:rpush('list', 'value1', 'value2', 'value3')
+```
+
 ### Leverage Redis MULTI / EXEC transaction (Redis > 2.0)
 
 ``` lua
