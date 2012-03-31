@@ -28,11 +28,6 @@ local protocol = {
     null    = 'nil'
 }
 
-local lua_error = error
-local function default_error_fn(message, level)
-    lua_error(message, (level or 1) + 1)
-end
-
 local function merge_defaults(parameters)
     if parameters == nil then
         parameters = {}
@@ -198,7 +193,7 @@ end
 
 local function create_client(proto, client_socket, methods)
     local client = load_methods(proto, methods)
-    client.error = default_error_fn
+    client.error = redis.error
     client.network = {
         socket = client_socket,
         read   = network.read,
@@ -673,7 +668,7 @@ local function connect_tcp(socket, parameters)
     local host, port = parameters.host, tonumber(parameters.port)
     local ok, err = socket:connect(host, port)
     if not ok then
-        default_error_fn('could not connect to '..host..':'..port..' ['..err..']')
+        redis.error('could not connect to '..host..':'..port..' ['..err..']')
     end
     socket:setoption('tcp-nodelay', parameters.tcp_nodelay)
     return socket
@@ -682,7 +677,7 @@ end
 local function connect_unix(socket, parameters)
     local ok, err = socket:connect(parameters.path)
     if not ok then
-        default_error_fn('could not connect to '..parameters.path..' ['..err..']')
+        redis.error('could not connect to '..parameters.path..' ['..err..']')
     end
     return socket
 end
@@ -705,6 +700,10 @@ local function create_connection(parameters)
 end
 
 -- ############################################################################
+
+function redis.error(message, level)
+    error(message, (level or 1) + 1)
+end
 
 function redis.connect(...)
     local args, parameters = {...}, nil
