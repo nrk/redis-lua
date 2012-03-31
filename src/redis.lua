@@ -199,6 +199,7 @@ end
 
 local function create_client(proto, client_socket, methods)
     local client = load_methods(proto, methods)
+    client.error = default_error_fn
     client.network = {
         socket = client_socket,
         read   = network.read,
@@ -734,8 +735,6 @@ function redis.connect(...)
 
     local socket = create_connection(merge_defaults(parameters))
     local client = create_client(client_prototype, socket, commands)
-
-    client.error = default_error_fn
 
     return client
 end
