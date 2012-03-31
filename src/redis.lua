@@ -161,7 +161,8 @@ local function hash_multi_request_builder(builder_callback)
 end
 
 local function parse_info(response)
-    local info, current = {}, nil
+    local info = {}
+    local current = info
 
     response:gsub('([^\r\n]*)\r\n', function(kv)
         if kv == '' then return end
@@ -171,8 +172,6 @@ local function parse_info(response)
             current = {}
             info[section:lower()] = current
             return
-        else
-            current = info
         end
 
         local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
