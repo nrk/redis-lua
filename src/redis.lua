@@ -729,7 +729,7 @@ function connect(...)
 
     local socket = create_connection(merge_defaults(parameters))
     local client = create_client(client_prototype, socket, commands)
-    
+
     client.error = default_error_fn
 
     return client

@@ -1,49 +1,49 @@
 v2.0.2 (2011-06-20)
-  * Added an abstraction for PUB/SUB that makes possible to consume messages 
+  * Added an abstraction for PUB/SUB that makes possible to consume messages
     pushed to channels using a coroutine-based iterator.
 
   * Added support for connecting to Redis using UNIX domain sockets when they
     are available in LuaSocket.
 
 v2.0.1 (2011-01-24)
-  * Vastly improved abstraction for Redis transactions (MULTI/EXEC) supporting 
-    check-and-set (CAS), automatic retries upon transaction failures and a few 
-    optional arguments for initialization (enable CAS support, list of keys to 
-    watch automatically and number of attempts upon failed transactions). The 
+  * Vastly improved abstraction for Redis transactions (MULTI/EXEC) supporting
+    check-and-set (CAS), automatic retries upon transaction failures and a few
+    optional arguments for initialization (enable CAS support, list of keys to
+    watch automatically and number of attempts upon failed transactions). The
     public interface is completely backwards compatible with previous versions.
 
-  * Pipelines and transactions return the number of commands processed as the 
-    second return value, useful for iterating over a returned list of replies 
+  * Pipelines and transactions return the number of commands processed as the
+    second return value, useful for iterating over a returned list of replies
     that contains holes (nil values).
 
-  * Since SORT can accept multiple GET parameters, redis:sort() has been 
-    modified accordingly to accept either a string or a table for the 'get' 
+  * Since SORT can accept multiple GET parameters, redis:sort() has been
+    modified accordingly to accept either a string or a table for the 'get'
     parameter.
 
 v2.0.0 (2010-11-27)
   * The client library is no longer compatible with Redis 1.0.
 
-  * Support for long names of Redis commands has been dropped, the client now 
+  * Support for long names of Redis commands has been dropped, the client now
     uses the same command names as defined by Redis.
 
-  * Inline and bulk requests are not supported anymore and the related code 
-    has been removed from the library. Commands are defined as multibulk 
+  * Inline and bulk requests are not supported anymore and the related code
+    has been removed from the library. Commands are defined as multibulk
     requests by default.
 
-  * The public interface for pipelining has been slightly changed (see the 
+  * The public interface for pipelining has been slightly changed (see the
     examples/pipeline.lua file for more details).
 
-  * The public interface for Redis transactions (MULTI/EXEC) basically works 
+  * The public interface for Redis transactions (MULTI/EXEC) basically works
     in the same way of pipelining.
 
-  * Developers can now define their own commands at module level and not only 
+  * Developers can now define their own commands at module level and not only
     on client instances.
 
 v1.0.1 (2010-07-30)
   * Providing a more generalized version of the multibulk request serializer.
 
-  * _G is now passed as the argument of a pipeline block. This will change in 
-    a future major release of redis-lua, but for now it is useful to enable 
+  * _G is now passed as the argument of a pipeline block. This will change in
+    a future major release of redis-lua, but for now it is useful to enable
     the usage of global functions inside of a pipeline block.
 
   * Fix: user-added commands were not available when pipelining commands.

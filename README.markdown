@@ -89,7 +89,7 @@ end)
 ### Get useful information from the server ###
 
 ``` lua
-for k,v in pairs(redis:info()) do 
+for k,v in pairs(redis:info()) do
     print(k .. ' => ' .. tostring(v))
 end
 --[[
