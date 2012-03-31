@@ -662,6 +662,51 @@ do
     end
 end
 
+-- MONITOR context
+
+do
+    local monitor_loop = function(client)
+        local monitoring = true
+
+        -- Tricky since the payload format changed starting from Redis 2.6.
+        local pattern = '^(%d+%.%d+)( ?.- ?) ?"(%a+)" ?(.-)$'
+
+        local abort = function()
+            monitoring = false
+        end
+
+        return coroutine.wrap(function()
+            client:monitor()
+
+            while monitoring do
+                local message, matched
+                local response = response.read(client)
+
+                local ok = response:gsub(pattern, function(time, info, cmd, args)
+                    message = {
+                        timestamp = tonumber(time),
+                        client    = info:match('%d+.%d+.%d+.%d+:%d+'),
+                        database  = tonumber(info:match('%d+')) or 0,
+                        command   = cmd,
+                        arguments = args:match('.+'),
+                    }
+                    matched = true
+                end)
+
+                if not matched then
+                    client.error('Unable to match MONITOR payload: '..response)
+                end
+
+                coroutine.yield(message, abort)
+            end
+        end)
+    end
+
+    client_prototype.monitor_messages = function(client)
+        return monitor_loop(client)
+    end
+end
+
 -- ############################################################################
 
 local function connect_tcp(socket, parameters)
@@ -1066,6 +1111,7 @@ commands = {
     lastsave         = command('LASTSAVE'),
     flushdb          = command('FLUSHDB'),
     flushall         = command('FLUSHALL'),
+    monitor          = command('MONITOR'),
     time             = command('TIME'),         -- >= 2.6
     shutdown         = command('SHUTDOWN', {
         request = fire_and_forget
