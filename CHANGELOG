@@ -1,4 +1,4 @@
-v2.0.3 (2012-xx-xx)
+v2.0.3 (2012-04-01)
   * It is now possible to require redis-lua by assigning the returned module
     to a local variable like `local redis = require 'redis'`. Starting with
     this release this is the preferred way to require redis-lua. The `Redis`
