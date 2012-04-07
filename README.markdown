@@ -12,6 +12,11 @@ redis-lua is a pure Lua client library for the Redis advanced key-value database
 - User-definable commands
 - UNIX domain sockets (when available in LuaSocket)
 
+## Compatibility ##
+
+This library is tested and works with __Lua 5.1__, __Lua 5.2__ (using a compatible
+version of LuaSocket) and __LuaJit 2.0__.
+
 ## Examples of usage ##
 
 ### Include redis-lua in your script ###
@@ -151,7 +156,7 @@ uptime_in_days => 0
 
 ## Dependencies ##
 
-- [Lua 5.1](http://www.lua.org/) or [LuaJIT 2.0](http://luajit.org/)
+- [Lua 5.1 and 5.2](http://www.lua.org/) or [LuaJIT 2.0](http://luajit.org/)
 - [LuaSocket 2.0](http://www.tecgraf.puc-rio.br/~diego/professional/luasocket/)
 - [Telescope](http://telescope.luaforge.net/) (required to run the test suite)
 
