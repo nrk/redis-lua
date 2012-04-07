@@ -1,4 +1,4 @@
-package.path = package.path .. ";../src/?.lua;src/?.lua"
+package.path = "../src/?.lua;src/?.lua;" .. package.path
 
 pcall(require, "luarocks.require")
 
