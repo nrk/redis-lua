@@ -1,6 +1,6 @@
 package.path = package.path .. ";../src/?.lua;src/?.lua"
 
-require "luarocks.require"
+pcall(require, "luarocks.require")
 require "telescope"
 local redis = require "redis"
 
