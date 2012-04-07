@@ -244,6 +244,15 @@ context("Client initialization", function()
         local client = redis.connect(settings)
         assert_type(client, 'table')
     end)
+
+    test("Can use an already connected socket", function()
+        local connection = require('socket').tcp()
+        connection:connect(settings.host, settings.port)
+
+        local client = redis.connect({ socket = connection })
+        assert_type(client, 'table')
+        assert_true(client:ping())
+    end)
 end)
 
 context("Client features", function()

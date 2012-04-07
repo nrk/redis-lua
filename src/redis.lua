@@ -757,6 +757,10 @@ local function connect_unix(socket, parameters)
 end
 
 local function create_connection(parameters)
+    if parameters.socket then
+        return parameters.socket
+    end
+
     local perform_connection, socket
 
     if parameters.scheme == 'unix' then
