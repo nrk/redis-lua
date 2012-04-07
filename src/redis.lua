@@ -388,7 +388,7 @@ local function custom(command, send, parse)
     end
 end
 
-function command(command, opts)
+local function command(command, opts)
     if opts == nil or type(opts) == 'function' then
         return custom(command, request.multibulk, opts)
     else
