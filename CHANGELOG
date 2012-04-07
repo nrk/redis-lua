@@ -1,6 +1,8 @@
 v2.0.4 (2012-xx-xx)
   * The library is now fully compatible with Lua 5.2.
 
+  * Implemented some small optimizations in the handling of the Redis protocol.
+
 v2.0.3 (2012-04-01)
   * It is now possible to require redis-lua by assigning the returned module
     to a local variable like `local redis = require 'redis'`. Starting with

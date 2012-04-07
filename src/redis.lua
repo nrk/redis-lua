@@ -21,14 +21,6 @@ local defaults = {
     path        = nil
 }
 
-local protocol = {
-    newline = '\r\n',
-    ok      = 'OK',
-    err     = 'ERR',
-    queued  = 'QUEUED',
-    null    = 'nil'
-}
-
 local function merge_defaults(parameters)
     if parameters == nil then
         parameters = {}
@@ -56,7 +48,7 @@ local function toboolean(value) return value == 1 end
 local function fire_and_forget(client, command)
     -- let's fire and forget! the connection is closed as soon
     -- as the SHUTDOWN command is received by the server.
-    client.network.write(client, command .. protocol.newline)
+    client.network.write(client, command .. "\r\n")
     return false
 end
 
@@ -222,87 +214,74 @@ end
 -- ############################################################################
 
 function response.read(client)
-    local res = client.network.read(client)
-    local prefix  = res:sub(1, -#res)
-    local handler = protocol.prefixes[prefix]
-    if not handler then
-        client.error('unknown response prefix: '..prefix)
-    end
-    return handler(client, res)
-end
+    local payload = client.network.read(client)
+    local prefix, data = payload:sub(1, -#payload), payload:sub(2)
 
-function response.status(client, data)
-    local sub = data:sub(2)
+    -- status reply
+    if prefix == '+' then
+        if data == 'OK' then
+            return true
+        elseif data == 'QUEUED' then
+            return { queued = true }
+        else
+            return data
+        end
 
-    if sub == protocol.ok then
-        return true
-    elseif sub == protocol.queued then
-        return { queued = true }
-    else
-        return sub
-    end
-end
+   -- error reply
+    elseif prefix == '-' then
+        return client.error('redis error: ' .. data)
 
-function response.error(client, data)
-    local err_line = data:sub(2)
+   -- integer reply
+    elseif prefix == ':' then
+        local number = tonumber(data)
 
-    if err_line:sub(1, 3) == protocol.err then
-        client.error('redis error: ' .. err_line:sub(5))
-    else
-        client.error('redis error: ' .. err_line)
-    end
-end
+        if not number then
+            if res == 'nil' then
+                return nil
+            end
+            client.error('cannot parse '..res..' as a numeric response.')
+        end
 
-function response.bulk(client, data)
-    local str = data:sub(2)
-    local len = tonumber(str)
-    if not len then
-        client.error('cannot parse ' .. str .. ' as data length')
-    end
+        return number
 
-    if len == -1 then return nil end
-    local next_chunk = client.network.read(client, len + 2)
-    return next_chunk:sub(1, -3);
-end
+   -- bulk reply
+    elseif prefix == '$' then
+        local length = tonumber(data)
 
-function response.multibulk(client, data)
-    local str = data:sub(2)
-    local list_count = tonumber(str)
+        if not length then
+            client.error('cannot parse ' .. length .. ' as data length')
+        end
 
-    if list_count == -1 then
-        return nil
-    else
+        if length == -1 then
+            return nil
+        end
+
+        local nextchunk = client.network.read(client, length + 2)
+
+        return nextchunk:sub(1, -3)
+
+   -- bulk reply
+    elseif prefix == '*' then   -- multibulk reply
+        local count = tonumber(data)
+
+        if count == -1 then
+            return nil
+        end
+
         local list = {}
-        if list_count > 0 then
-            for i = 1, list_count do
-                table.insert(list, i, response.read(client))
+        if count > 0 then
+            local reader = response.read
+            for i = 1, count do
+                table.insert(list, i, reader(client))
             end
         end
         return list
+
+   -- unknown type of reply
+    else
+        return client.error('unknown response prefix: ' .. prefix)
     end
 end
-
-function response.integer(client, data)
-    local res = data:sub(2)
-    local number = tonumber(res)
-
-    if not number then
-        if res == protocol.null then
-            return nil
-        end
-        client.error('cannot parse '..res..' as a numeric response.')
-    end
-
-    return number
-end
-
-protocol.prefixes = {
-    ['+'] = response.status,
-    ['-'] = response.error,
-    ['$'] = response.bulk,
-    ['*'] = response.multibulk,
-    [':'] = response.integer,
-}
 
 -- ############################################################################
 
@@ -319,24 +298,23 @@ function request.raw(client, buffer)
 end
 
 function request.multibulk(client, command, ...)
-    local args      = {...}
-    local args_len  = #args
-    local buffer    = { true, true }
-    local proto_nl  = protocol.newline
+    local args = {...}
+    local argsn = #args
+    local buffer = { true, true }
 
-    if args_len == 1 and type(args[1]) == 'table' then
-        args_len, args = #args[1], args[1]
+    if argsn == 1 and type(args[1]) == 'table' then
+        argsn, args = #args[1], args[1]
     end
 
-    buffer[1] = '*' .. tostring(args_len + 1) .. proto_nl
-    buffer[2] = '$' .. #command .. proto_nl .. command .. proto_nl
+    buffer[1] = '*' .. tostring(argsn + 1) .. "\r\n"
+    buffer[2] = '$' .. #command .. "\r\n" .. command .. "\r\n"
 
     for _, argument in pairs(args) do
-        s_argument = tostring(argument)
-        table.insert(buffer, '$' .. #s_argument .. proto_nl .. s_argument .. proto_nl)
+        local s_argument = tostring(argument)
+        table.insert(buffer, '$' .. #s_argument .. "\r\n" .. s_argument .. "\r\n")
     end
 
-    request.raw(client, buffer)
+    client.network.write(client, table.concat(buffer))
 end
 
 -- ############################################################################
@@ -386,7 +364,7 @@ end
 local client_prototype = {}
 
 client_prototype.raw_cmd = function(client, buffer)
-    request.raw(client, buffer .. protocol.newline)
+    request.raw(client, buffer .. "\r\n")
     return response.read(client)
 end
 
