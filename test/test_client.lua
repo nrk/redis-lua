@@ -1,7 +1,8 @@
 package.path = package.path .. ";../src/?.lua;src/?.lua"
 
 pcall(require, "luarocks.require")
-require "telescope"
+
+local tsc = require "telescope"
 local redis = require "redis"
 
 local settings = {
@@ -200,15 +201,15 @@ local shared = {
     end,
 }
 
-make_assertion("table_values", "'%s' to have the same values as '%s'", table.compare)
-make_assertion("response_queued", "to be queued", function(response)
+tsc.make_assertion("table_values", "'%s' to have the same values as '%s'", table.compare)
+tsc.make_assertion("response_queued", "to be queued", function(response)
     if type(response) == 'table' and response.queued == true then
         return true
     else
         return false
     end
 end)
-make_assertion("error_message", "result to be an error with the expected message", function(msg, f)
+tsc.make_assertion("error_message", "result to be an error with the expected message", function(msg, f)
     local ok, err = pcall(f)
     return not ok and err:match(msg)
 end)
