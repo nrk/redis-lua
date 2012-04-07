@@ -11,6 +11,7 @@ local redis = {
 -- the module to a local variable when requiring it: `local redis = require('redis')`.
 Redis = redis
 
+local unpack = _G.unpack or table.unpack
 local commands, network, request, response = {}, {}, {}, {}
 
 local defaults = {

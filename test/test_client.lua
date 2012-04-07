@@ -2,6 +2,8 @@ package.path = package.path .. ";../src/?.lua;src/?.lua"
 
 pcall(require, "luarocks.require")
 
+local unpack = _G.unpack or table.unpack
+
 local tsc = require "telescope"
 local redis = require "redis"
 
