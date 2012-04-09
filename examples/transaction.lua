@@ -1,4 +1,5 @@
 package.path = "../src/?.lua;src/?.lua;" .. package.path
+pcall(require, "luarocks.require")
 
 local redis = require 'redis'
 
