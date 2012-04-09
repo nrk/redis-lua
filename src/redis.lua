@@ -321,8 +321,9 @@ function response.read(client)
         local list = {}
         if count > 0 then
             local reader = response.read
+            local table_insert = table.insert
             for i = 1, count do
-                table.insert(list, i, reader(client))
+                table_insert(list, i, reader(client))
             end
         end
         return list
@@ -359,9 +360,10 @@ function request.multibulk(client, command, ...)
     buffer[1] = '*' .. tostring(argsn + 1) .. "\r\n"
     buffer[2] = '$' .. #command .. "\r\n" .. command .. "\r\n"
 
+    local table_insert = table.insert
     for _, argument in pairs(args) do
         local s_argument = tostring(argument)
-        table.insert(buffer, '$' .. #s_argument .. "\r\n" .. s_argument .. "\r\n")
+        table_insert(buffer, '$' .. #s_argument .. "\r\n" .. s_argument .. "\r\n")
     end
 
     client.network.write(client, table.concat(buffer))
@@ -430,10 +432,11 @@ end
 
 client_prototype.pipeline = function(client, block)
     local requests, replies, parsers = {}, {}, {}
+    local table_insert = table.insert
     local socket_write, socket_read = client.network.write, client.network.read
 
     client.network.write = function(_, buffer)
-        table.insert(requests, buffer)
+        table_insert(requests, buffer)
     end
 
     -- TODO: this hack is necessary to temporarily reuse the current
@@ -451,7 +454,7 @@ client_prototype.pipeline = function(client, block)
             end
             return function(self, ...)
                 local reply = cmd(client, ...)
-                table.insert(parsers, #requests, reply.parser)
+                table_insert(parsers, #requests, reply.parser)
                 return reply
             end
         end
@@ -469,7 +472,7 @@ client_prototype.pipeline = function(client, block)
         if parser then
             reply = parser(reply)
         end
-        table.insert(replies, i, reply)
+        table_insert(replies, i, reply)
     end
 
     return replies, #requests
@@ -564,12 +567,13 @@ do
     local emptytable = {}
 
     local function initialize_transaction(client, options, block, queued_parsers)
+        local table_insert = table.insert
         local coro = coroutine.create(block)
 
         if options.watch then
             local watch_keys = {}
             for _, key in pairs(options.watch) do
-                table.insert(watch_keys, key)
+                table_insert(watch_keys, key)
             end
             if #watch_keys > 0 then
                 client:watch(unpack(watch_keys))
@@ -607,7 +611,7 @@ do
                     local function queuey(self, ...)
                         local reply = cmd(client, ...)
                         assert((reply or emptytable).queued == true, 'a QUEUED reply was expected')
-                        table.insert(queued_parsers, reply.parser or identity)
+                        table_insert(queued_parsers, reply.parser or identity)
                         return reply
                     end
                     t[k]=queuey
@@ -649,8 +653,9 @@ do
             end
         end
 
+        local table_insert = table.insert
         for i, parser in pairs(queued_parsers) do
-            table.insert(replies, i, parser(raw_replies[i]))
+            table_insert(replies, i, parser(raw_replies[i]))
         end
 
         return replies, #queued_parsers
