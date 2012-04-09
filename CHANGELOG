@@ -7,6 +7,13 @@ v2.0.4 (2012-xx-xx)
     the `socket` field in the parameters table (it takes the precedence over
     other fields such as `host`, `port` or `path`).
 
+  * The module now exposes its default command table in the `commands` field.
+
+  * It is available a new way to define custom Redis commands on a module or
+    client-level instance. The old way is still in place but it is considered
+    deprecated and will be removed in the next major release. For more details
+    see `examples/define_commands.lua` and the test suite.
+
 v2.0.3 (2012-04-01)
   * It is now possible to require redis-lua by assigning the returned module
     to a local variable like `local redis = require 'redis'`. Starting with

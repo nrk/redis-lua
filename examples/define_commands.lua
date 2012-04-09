@@ -7,11 +7,12 @@ local params = {
     port = 6379,
 }
 
--- new commands are defined as multibulk by default
-redis.define_command('hset')
+-- commands defined in the redis.commands table are available at module
+-- level and are used to populate each new client instance.
+redis.commands.hset = redis.command('hset')
 
 -- you can also specify a response callback to parse raw replies
-redis.define_command('hgetall', {
+redis.commands.hgetall = redis.command('hgetall', {
     response = function(reply, command, ...)
         local new_reply = { }
         for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end

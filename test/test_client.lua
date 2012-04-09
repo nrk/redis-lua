@@ -278,6 +278,18 @@ context("Client features", function()
     end)
 
     test("Define commands at module level", function()
+        redis.commands.doesnotexist = redis.command('doesnotexist')
+        local client2 = utils.create_client(settings)
+
+        redis.commands.doesnotexist = nil
+        local client3 = utils.create_client(settings)
+
+        assert_nil(client.doesnotexist)
+        assert_not_nil(client2.doesnotexist)
+        assert_nil(client3.doesnotexist)
+    end)
+
+    test("Define commands at module level (OLD)", function()
         redis.define_command('doesnotexist')
         local client2 = utils.create_client(settings)
 
@@ -290,6 +302,32 @@ context("Client features", function()
     end)
 
     test("Define new commands at client instance level", function()
+        client.doesnotexist = redis.command('doesnotexist')
+        assert_not_nil(client.doesnotexist)
+        assert_error(function() client:doesnotexist() end)
+
+        client.doesnotexist = nil
+        assert_nil(client.doesnotexist)
+
+        client.ping = redis.command('ping')
+        assert_not_nil(client.ping)
+        assert_equal(client:ping(), 'PONG')
+
+        client.ping = redis.command('ping', {
+            request = client.requests.multibulk
+        })
+        assert_not_nil(client.ping)
+        assert_equal(client:ping(), 'PONG')
+
+        client.ping = redis.command('ping', {
+            request  = client.requests.multibulk,
+            response = function(reply) return reply == 'PONG' end
+        })
+        assert_not_nil(client.ping)
+        assert_true(client:ping())
+    end)
+
+    test("Define new commands at client instance level (OLD)", function()
         client:define_command('doesnotexist')
         assert_not_nil(client.doesnotexist)
         assert_error(function() client:doesnotexist() end)

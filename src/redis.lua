@@ -10,7 +10,7 @@ local redis = {
 Redis = redis
 
 local unpack = _G.unpack or table.unpack
-local commands, network, request, response = {}, {}, {}, {}
+local network, request, response = {}, {}, {}
 
 local defaults = {
     host        = '127.0.0.1',
@@ -220,15 +220,25 @@ local function parse_info(response)
     return info
 end
 
-local function load_methods(proto, methods)
+local function load_methods(proto, commands)
     local client = setmetatable ({}, getmetatable(proto))
-    for i, v in pairs(proto) do client[i] = v end
-    for i, v in pairs(methods) do client[i] = v end
+
+    for cmd, fn in pairs(commands) do
+        if type(fn) ~= 'function' then
+            redis.error('invalid type for command ' .. cmd .. '(must be a function)')
+        end
+        client[cmd] = fn
+    end
+
+    for i, v in pairs(proto) do
+        client[i] = v
+    end
+
     return client
 end
 
-local function create_client(proto, client_socket, methods)
-    local client = load_methods(proto, methods)
+local function create_client(proto, client_socket, commands)
+    local client = load_methods(proto, commands)
     client.error = redis.error
     client.network = {
         socket = client_socket,
@@ -364,6 +374,7 @@ end
 -- ############################################################################
 
 local function custom(command, send, parse)
+    command = string.upper(command)
     return function(client, ...)
         send(client, command, ...)
         local reply = response.read(client)
@@ -410,10 +421,12 @@ client_prototype.raw_cmd = function(client, buffer)
     return response.read(client)
 end
 
+-- obsolete
 client_prototype.define_command = function(client, name, opts)
     define_command_impl(client, name, opts)
 end
 
+-- obsolete
 client_prototype.undefine_command = function(client, name)
     undefine_command_impl(client, name)
 end
@@ -815,6 +828,11 @@ function redis.connect(...)
         parameters = { host = host, port = port }
     end
 
+    local commands = redis.commands or {}
+    if type(commands) ~= 'table' then
+        redis.error('invalid type for the commands table')
+    end
+
     local socket = create_connection(merge_defaults(parameters))
     local client = create_client(client_prototype, socket, commands)
 
@@ -825,17 +843,22 @@ function redis.command(cmd, opts)
     return command(cmd, opts)
 end
 
+-- obsolete
 function redis.define_command(name, opts)
-    define_command_impl(commands, name, opts)
+    define_command_impl(redis.commands, name, opts)
 end
 
+-- obsolete
 function redis.undefine_command(name)
-    undefine_command_impl(commands, name)
+    undefine_command_impl(redis.commands, name)
 end
 
 -- ############################################################################
 
-commands = {
+-- Commands defined in this table do not take the precedence over
+-- methods defined in the client prototype table.
+
+redis.commands = {
     -- commands operating on the key space
     exists           = command('EXISTS', {
         response = toboolean
