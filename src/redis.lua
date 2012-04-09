@@ -375,9 +375,8 @@ local function custom(command, send, parse)
         else
             if parse then
                 return parse(reply, command, ...)
-            else
-                return reply
             end
+            return reply
         end
     end
 end
