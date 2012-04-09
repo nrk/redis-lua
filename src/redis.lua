@@ -43,13 +43,6 @@ end
 
 local function toboolean(value) return value == 1 end
 
-local function fire_and_forget(client, command)
-    -- let's fire and forget! the connection is closed as soon
-    -- as the SHUTDOWN command is received by the server.
-    client.network.write(client, command .. "\r\n")
-    return false
-end
-
 local function sort_request(client, command, key, params)
     --[[ params = {
         by    = 'weight_*',
@@ -373,8 +366,7 @@ end
 
 local function custom(command, send, parse)
     return function(client, ...)
-        local has_reply = send(client, command, ...)
-        if has_reply == false then return end
+        send(client, command, ...)
         local reply = response.read(client)
 
         if type(reply) == 'table' and reply.queued then
@@ -426,6 +418,17 @@ end
 
 client_prototype.undefine_command = function(client, name)
     undefine_command_impl(client, name)
+end
+
+client_prototype.quit = function(client)
+    request.multibulk(client, 'QUIT')
+    client.network.socket:shutdown()
+    return true
+end
+
+client_prototype.shutdown = function(client)
+    request.multibulk(client, 'SHUTDOWN')
+    client.network.socket:shutdown()
 end
 
 -- Command pipelining
@@ -1046,9 +1049,6 @@ commands = {
     echo             = command('ECHO'),
     auth             = command('AUTH'),
     select           = command('SELECT'),
-    quit             = command('QUIT', {
-        request = fire_and_forget
-    }),
 
     -- transactions
     multi            = command('MULTI'),        -- >= 2.0
@@ -1091,9 +1091,6 @@ commands = {
     flushall         = command('FLUSHALL'),
     monitor          = command('MONITOR'),
     time             = command('TIME'),         -- >= 2.6
-    shutdown         = command('SHUTDOWN', {
-        request = fire_and_forget
-    }),
     slowlog          = command('SLOWLOG', {     -- >= 2.2.13
         response = function(reply, command, ...)
             if (type(reply) == 'table') then
