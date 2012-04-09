@@ -314,9 +314,8 @@ function response.read(client)
         local list = {}
         if count > 0 then
             local reader = response.read
-            local table_insert = table.insert
             for i = 1, count do
-                table_insert(list, i, reader(client))
+                list[i] = reader(client)
             end
         end
         return list
