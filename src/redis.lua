@@ -303,8 +303,8 @@ function response.read(client)
 
         return nextchunk:sub(1, -3)
 
-   -- bulk reply
-    elseif prefix == '*' then   -- multibulk reply
+   -- multibulk reply
+    elseif prefix == '*' then
         local count = tonumber(data)
 
         if count == -1 then
