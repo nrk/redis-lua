@@ -261,9 +261,9 @@ context("Client features", function()
     end)
 
     test("Send raw commands", function()
-        assert_equal(client:raw_cmd("PING\r\n"), 'PONG')
-        assert_true(client:raw_cmd("*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"))
-        assert_equal(client:raw_cmd("GET foo\r\n"), 'bar')
+        assert_equal(client:raw_command({ 'PING' }), 'PONG')
+        assert_true(client:raw_command({ 'SET', 'foo', 'bar' }))
+        assert_equal(client:raw_command({ 'GET', 'foo' }), 'bar')
     end)
 
     test("Create a new unbound command object", function()
@@ -302,13 +302,13 @@ context("Client features", function()
         assert_equal(client:ping(), 'PONG')
 
         client.ping = redis.command('ping', {
-            request = client.requests.multibulk
+            request = function(command, ...) return ... end
         })
         assert_not_nil(client.ping)
         assert_equal(client:ping(), 'PONG')
 
         client.ping = redis.command('ping', {
-            request  = client.requests.multibulk,
+            request  = function(command, ...) return ... end,
             response = function(reply) return reply == 'PONG' end
         })
         assert_not_nil(client.ping)
