@@ -27,10 +27,6 @@ Just require the `redis` module assigning it to a variable:
 local redis = require 'redis'
 ```
 
-Previous versions of the library defined a global `Redis` alias as soon as the module was
-imported by the user. This global alias is still defined but it is considered deprecated
-and it will be removed in the next major version.
-
 ### Connect to a redis-server instance and send a PING command ###
 
 ``` lua
@@ -40,7 +36,7 @@ local response = client:ping()           -- true
 ```
 
 It is also possible to connect to a local redis instance using __UNIX domain sockets__
-if LuaSocket has been compiled with them enabled (unfortunately it is not the default):
+if LuaSocket has been compiled with them enabled (unfortunately this is not the default):
 
 ``` lua
 local redis = require 'redis'
@@ -116,42 +112,18 @@ local replies = client:transaction(options, function(t)
 end)
 ```
 
-### Get useful information from the server ###
+### Add or replace Redis commands ###
 
-``` lua
-for k,v in pairs(client:info()) do
-    print(k .. ' => ' .. tostring(v))
-end
---[[
-redis_git_dirty => 0
-redis_git_sha1 => aaed0894
-process_id => 23115
-vm_enabled => 0
-hash_max_zipmap_entries => 64
-expired_keys => 9
-changes_since_last_save => 2
-role => master
-last_save_time => 1283621624
-used_memory => 537204
-bgsave_in_progress => 0
-redis_version => 2.0.0
-multiplexing_api => epoll
-total_connections_received => 314
-db0 => {keys=3,expires=0}
-pubsub_patterns => 0
-used_memory_human => 524.61K
-pubsub_channels => 0
-uptime_in_seconds => 1033
-connected_slaves => 0
-connected_clients => 1
-bgrewriteaof_in_progress => 0
-blocked_clients => 0
-arch_bits => 32
-total_commands_processed => 3982
-hash_max_zipmap_value => 512
-db15 => {keys=1,expires=0}
-uptime_in_days => 0
-]]
+You can define new Redis commands or redefine existing ones at module level (commands
+will be available on all client instances) or client level (commands will be available
+only on that client instance).
+
+```lua
+local redis = require 'redis'
+redis.commands.set = redis.command('set')   -- module level
+
+local client = redis.connect()
+client.get = redis.command('get')           -- client level
 ```
 
 ## Dependencies ##
