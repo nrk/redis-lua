@@ -399,19 +399,6 @@ local function command(command, opts)
     end
 end
 
-local define_command_impl = function(target, name, opts)
-    local opts = opts or {}
-    target[string.lower(name)] = custom(
-        opts.command or string.upper(name),
-        opts.request or request.multibulk,
-        opts.response or nil
-    )
-end
-
-local undefine_command_impl = function(target, name)
-    target[string.lower(name)] = nil
-end
-
 -- ############################################################################
 
 local client_prototype = {}
@@ -419,16 +406,6 @@ local client_prototype = {}
 client_prototype.raw_cmd = function(client, buffer)
     request.raw(client, buffer .. "\r\n")
     return response.read(client)
-end
-
--- obsolete
-client_prototype.define_command = function(client, name, opts)
-    define_command_impl(client, name, opts)
-end
-
--- obsolete
-client_prototype.undefine_command = function(client, name)
-    undefine_command_impl(client, name)
 end
 
 client_prototype.quit = function(client)
@@ -841,16 +818,6 @@ end
 
 function redis.command(cmd, opts)
     return command(cmd, opts)
-end
-
--- obsolete
-function redis.define_command(name, opts)
-    define_command_impl(redis.commands, name, opts)
-end
-
--- obsolete
-function redis.undefine_command(name)
-    undefine_command_impl(redis.commands, name)
 end
 
 -- ############################################################################
