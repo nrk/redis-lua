@@ -353,11 +353,18 @@ end
 local default_serializer = function(cmd, ...) return ... end
 local default_parser = function(reply, ...) return reply end
 
-local function create_command(command, serializer, parser)
-    command = string.upper(command)
+local function command(command, opts)
+    command, opts = string.upper(command), opts or {}
 
-    local serializer = serializer or default_serializer
-    local parser = parser or default_parser
+    if opts.handler then
+        local handler = opts.handler
+        return function(client, ...)
+            return handler(client, command, ...)
+        end
+    end
+
+    local serializer = opts.request or default_serializer
+    local parser = opts.response or default_parser
 
     return function(client, ...)
         client:write_request(command, serializer(command, ...))
@@ -372,11 +379,6 @@ local function create_command(command, serializer, parser)
     end
 end
 
-local function command(command, opts)
-    opts = opts or {}
-    return create_command(command, opts.request, opts.response)
-end
-
 -- ############################################################################
 
 local client_prototype = {}
@@ -387,17 +389,6 @@ client_prototype.read_response = response_reader
 client_prototype.raw_command = function(client, ...)
     client:write_request(table.remove(..., 1), ...)
     return client:read_response()
-end
-
-client_prototype.quit = function(client)
-    client:write_request('QUIT')
-    client.network.socket:shutdown()
-    return true
-end
-
-client_prototype.shutdown = function(client)
-    client:write_request('SHUTDOWN')
-    client.network.socket:shutdown()
 end
 
 -- Command pipelining
@@ -756,6 +747,8 @@ end
 
 -- ############################################################################
 
+redis.command = command
+
 function redis.error(message, level)
     error(message, (level or 1) + 1)
 end
@@ -795,10 +788,6 @@ function redis.connect(...)
     local client = create_client(client_prototype, socket, commands)
 
     return client
-end
-
-function redis.command(cmd, opts)
-    return command(cmd, opts)
 end
 
 -- ############################################################################
@@ -1018,6 +1007,13 @@ redis.commands = {
     echo             = command('ECHO'),
     auth             = command('AUTH'),
     select           = command('SELECT'),
+    quit             = command('QUIT', {
+        handler = function(client, command)
+            client:write_request(command)
+            client.network.socket:shutdown()
+            return true
+        end
+    }),
 
     -- transactions
     multi            = command('MULTI'),        -- >= 2.0
@@ -1080,6 +1076,12 @@ redis.commands = {
     }),
     info             = command('INFO', {
         response = parse_info,
+    }),
+    shutdown         = command('SHUTDOWN', {
+        handler = function(client, command)
+            client:write_request(command)
+            client.network.socket:shutdown()
+        end
     }),
 }
 
