@@ -1,4 +1,4 @@
-v2.0.4 (2012-xx-xx)
+v2.0.4 (2012-07-25)
   * The library is now fully compatible with Lua 5.2.
 
   * Implemented some small optimizations in the handling of the Redis protocol.
