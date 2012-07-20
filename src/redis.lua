@@ -16,7 +16,7 @@ local defaults = {
     host        = '127.0.0.1',
     port        = 6379,
     tcp_nodelay = true,
-    path        = nil
+    path        = nil,
 }
 
 local function merge_defaults(parameters)
@@ -759,6 +759,10 @@ end
 
 local function connect_tcp(socket, parameters)
     local host, port = parameters.host, tonumber(parameters.port)
+    if parameters.timeout then
+        socket:settimeout(parameters.timeout, 't')
+    end
+
     local ok, err = socket:connect(host, port)
     if not ok then
         redis.error('could not connect to '..host..':'..port..' ['..err..']')
@@ -816,7 +820,9 @@ function redis.connect(...)
                     for k, v in parameters.query:gmatch('([-_%w]+)=([-_%w]+)') do
                         if k == 'tcp_nodelay' or k == 'tcp-nodelay' then
                             parameters.tcp_nodelay = parse_boolean(v)
-                        end
+                        elseif k == 'timeout' then
+                            parameters.timeout = tonumber(v)
+                        end 
                     end
                 end
             else
@@ -824,8 +830,8 @@ function redis.connect(...)
             end
         end
     elseif #args > 1 then
-        local host, port = unpack(args)
-        parameters = { host = host, port = port }
+        local host, port, timeout = unpack(args)
+        parameters = { host = host, port = port, timeout = timeout and tonumber(timeout) }
     end
 
     local commands = redis.commands or {}
