@@ -831,7 +831,7 @@ function redis.connect(...)
         end
     elseif #args > 1 then
         local host, port, timeout = unpack(args)
-        parameters = { host = host, port = port, timeout = timeout and tonumber(timeout) }
+        parameters = { host = host, port = port, timeout = tonumber(timeout) }
     end
 
     local commands = redis.commands or {}
