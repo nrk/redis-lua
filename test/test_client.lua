@@ -253,6 +253,16 @@ context("Client initialization", function()
         assert_type(client, 'table')
         assert_true(client:ping())
     end)
+
+    test("Can specify a timeout for connecting", function()
+        local time, timeout = os.time(), 2;
+
+        assert_error_message("could not connect to .*:%d+ %[timeout%]", function()
+            redis.connect({ host = '169.254.255.255', timeout = timeout })
+        end)
+
+        assert_equal(time + timeout, os.time())
+    end)
 end)
 
 context("Client features", function()
