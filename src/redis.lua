@@ -822,7 +822,7 @@ function redis.connect(...)
                             parameters.tcp_nodelay = parse_boolean(v)
                         elseif k == 'timeout' then
                             parameters.timeout = tonumber(v)
-                        end 
+                        end
                     end
                 end
             else
