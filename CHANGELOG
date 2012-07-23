@@ -1,3 +1,6 @@
+v2.0.5 (2012-xx-xx)
+  * Added the ability to specify a socket timeout in the connection parameters.
+
 v2.0.4 (2012-07-15)
   * The library is now fully compatible with Lua 5.2.
 
