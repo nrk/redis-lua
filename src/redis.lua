@@ -735,6 +735,7 @@ local function create_connection(parameters)
     local perform_connection, socket
 
     if parameters.scheme == 'unix' then
+        require 'socket'
         perform_connection, socket = connect_unix, require('socket.unix')
         assert(socket, 'your build of LuaSocket does not support UNIX domain sockets')
     else
