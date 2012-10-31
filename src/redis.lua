@@ -892,6 +892,8 @@ redis.commands = {
     getrange         = command('GETRANGE'),     -- >= 2.2
     setbit           = command('SETBIT'),       -- >= 2.2
     getbit           = command('GETBIT'),       -- >= 2.2
+    bitop            = command('BITOP'),        -- >= 2.6
+    bitcount         = command('BITCOUNT'),     -- >= 2.6
 
     -- commands operating on lists
     rpush            = command('RPUSH'),

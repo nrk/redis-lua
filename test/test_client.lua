@@ -960,6 +960,32 @@ context("Redis commands", function()
                 client:getbit('metavars', 0)
             end)
         end)
+
+        test("BITOP (client:bitop)", function()
+            if version:is('<', '2.5.10') then return end
+
+            client:set('foo', 'a')
+            client:set('bar', 'b')
+
+            client:bitop('AND', 'foo&bar', 'foo', 'bar')
+            client:bitop('OR', 'foo|bar', 'foo', 'bar')
+            client:bitop('XOR', 'foo^bar', 'foo', 'bar')
+            client:bitop('NOT', '-foo', 'foo')
+
+            assert_equal(client:get('foo&bar'), '\96')
+            assert_equal(client:get('foo|bar'), '\99')
+            assert_equal(client:get('foo^bar'), '\3')
+            assert_equal(client:get('-foo'), '\158')
+        end)
+
+        test("BITCOUNT (client:bitcount)", function()
+            if version:is('<', '2.5.10') then return end
+
+            client:set('foo', 'abcde')
+
+            assert_equal(client:bitcount('foo', 1, 3), 10)
+            assert_equal(client:bitcount('foo', 0, -1), 17)
+        end)
     end)
 
     context("Commands operating on lists", function()
