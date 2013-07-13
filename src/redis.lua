@@ -846,15 +846,7 @@ redis.commands = {
             return response
         end
     }),
-    randomkey        = command('RANDOMKEY', {
-        response = function(response)
-            if response == '' then
-                return nil
-            else
-                return response
-            end
-        end
-    }),
+    randomkey        = command('RANDOMKEY'),
     sort             = command('SORT', {
         request = sort_request,
     }),
