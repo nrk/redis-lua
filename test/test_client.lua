@@ -1876,9 +1876,9 @@ context("Redis commands", function()
         test("ZSCORE (client:zscore)", function()
             utils.zadd_return(client, 'zset', shared.zset_sample())
 
-            assert_equal(client:zscore('zset', 'a'), '-10')
-            assert_equal(client:zscore('zset', 'c'), '10')
-            assert_equal(client:zscore('zset', 'e'), '20')
+            assert_equal(client:zscore('zset', 'a'), -10)
+            assert_equal(client:zscore('zset', 'c'), 10)
+            assert_equal(client:zscore('zset', 'e'), 20)
 
             assert_nil(client:zscore('zset', 'x'))
             assert_nil(client:zscore('doesnotexist', 'a'))

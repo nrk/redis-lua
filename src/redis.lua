@@ -954,7 +954,11 @@ redis.commands = {
     }),
     zcount           = command('ZCOUNT'),
     zcard            = command('ZCARD'),
-    zscore           = command('ZSCORE'),
+    zscore           = command('ZSCORE', {
+        response = function(reply, command, ...)
+            return tonumber(reply)
+        end,
+    }),
     zremrangebyscore = command('ZREMRANGEBYSCORE'),
     zrank            = command('ZRANK'),                -- >= 2.0
     zrevrank         = command('ZREVRANK'),             -- >= 2.0
