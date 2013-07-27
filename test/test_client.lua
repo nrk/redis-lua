@@ -1605,12 +1605,12 @@ context("Redis commands", function()
 
             assert_table_values(
                 client:zrange('zset', 0, 2, 'withscores'),
-                  { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
+                  { { 'a', -10 }, { 'b', 0 }, { 'c', 10 } }
             )
 
             assert_table_values(
                 client:zrange('zset', 0, 2, { withscores = true }),
-                  { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
+                  { { 'a', -10 }, { 'b', 0 }, { 'c', 10 } }
             )
 
             assert_error(function()
@@ -1632,12 +1632,12 @@ context("Redis commands", function()
 
             assert_table_values(
                 client:zrevrange('zset', 0, 2, 'withscores'),
-                { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
+                { { 'f', 30 }, { 'e', 20 }, { 'd', 20 } }
             )
 
             assert_table_values(
                 client:zrevrange('zset', 0, 2, { withscores = true }),
-                { { 'f', '30' }, { 'e', '20' }, { 'd', '20' } }
+                { { 'f', 30 }, { 'e', 20 }, { 'd', 20 } }
             )
 
             assert_error(function()
@@ -1656,12 +1656,12 @@ context("Redis commands", function()
 
             assert_table_values(
                 client:zrangebyscore('zset', 10, 20, 'withscores'),
-                { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
+                { { 'c', 10 }, { 'd', 20 }, { 'e', 20 } }
             )
 
             assert_table_values(
                 client:zrangebyscore('zset', 10, 20, { withscores = true }),
-                { { 'c', '10' }, { 'd', '20' }, { 'e', '20' } }
+                { { 'c', 10 }, { 'd', 20 }, { 'e', 20 } }
             )
 
             assert_table_values(
@@ -1681,7 +1681,7 @@ context("Redis commands", function()
                     limit = { offset = 1, count = 2 },
                     withscores = true
                 }),
-                { { 'd', '20' }, { 'e', '20' } }
+                { { 'd', 20 }, { 'e', 20 } }
             )
 
             assert_error(function()
@@ -1700,7 +1700,7 @@ context("Redis commands", function()
 
             assert_table_values(
                 client:zrevrangebyscore('zset', 20, 10, 'withscores'),
-                { { 'e', '20' }, { 'd', '20' }, { 'c', '10' } }
+                { { 'e', 20 }, { 'd', 20 }, { 'c', 10 } }
             )
 
             assert_table_values(
@@ -1720,7 +1720,7 @@ context("Redis commands", function()
                     limit = { offset = 1, count = 2 },
                     withscores = true
                 }),
-                { { 'd', '20' }, { 'c', '10' } }
+                { { 'd', 20 }, { 'c', 10 } }
             )
 
             assert_error(function()
@@ -1740,19 +1740,19 @@ context("Redis commands", function()
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb'), 4)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'a', '1' }, { 'b', '3' }, { 'd', '3' }, { 'c', '5' } }
+                { { 'a', 1 }, { 'b', 3 }, { 'd', 3 }, { 'c', 5 } }
             )
 
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetbNull'), 3)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'a', '1' }, { 'b', '2' }, { 'c', '3' }}
+                { { 'a', 1 }, { 'b', 2 }, { 'c', 3 }}
             )
 
             assert_equal(client:zunionstore('zsetc', 2, 'zsetaNull', 'zsetb'), 3)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'b', '1' }, { 'c', '2' }, { 'd', '3' }}
+                { { 'b', 1 }, { 'c', 2 }, { 'd', 3 }}
             )
 
             assert_equal(client:zunionstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
@@ -1762,7 +1762,7 @@ context("Redis commands", function()
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'a', '2' }, { 'b', '7' }, { 'd', '9' }, { 'c', '12' } }
+                { { 'a', 2 }, { 'b', 7 }, { 'd', 9 }, { 'c', 12 } }
             )
 
             -- with AGGREGATE (min)
@@ -1770,7 +1770,7 @@ context("Redis commands", function()
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'a', '1' }, { 'b', '1' }, { 'c', '2' }, { 'd', '3' } }
+                { { 'a', 1 }, { 'b', 1 }, { 'c', 2 }, { 'd', 3 } }
             )
 
             -- with AGGREGATE (max)
@@ -1778,7 +1778,7 @@ context("Redis commands", function()
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'a', '1' }, { 'b', '2' }, { 'c', '3' }, { 'd', '3' } }
+                { { 'a', 1 }, { 'b', 2 }, { 'c', 3 }, { 'd', 3} }
             )
 
             assert_error(function()
@@ -1797,7 +1797,7 @@ context("Redis commands", function()
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb'), 2)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'b', '3' }, { 'c', '5' } }
+                { { 'b', 3 }, { 'c', 5 } }
             )
 
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetbNull'), 0)
@@ -1809,7 +1809,7 @@ context("Redis commands", function()
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'b', '7' }, { 'c', '12' } }
+                { { 'b', 7 }, { 'c', 12 } }
             )
 
             -- with AGGREGATE (min)
@@ -1817,7 +1817,7 @@ context("Redis commands", function()
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'b', '1' }, { 'c', '2' } }
+                { { 'b', 1 }, { 'c', 2 } }
             )
 
             -- with AGGREGATE (max)
@@ -1825,7 +1825,7 @@ context("Redis commands", function()
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'b', '2' }, { 'c', '3' } }
+                { { 'b', 2 }, { 'c', 3 } }
             )
 
             assert_error(function()
