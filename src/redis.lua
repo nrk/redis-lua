@@ -928,7 +928,11 @@ redis.commands = {
 
     -- commands operating on sorted sets
     zadd             = command('ZADD'),
-    zincrby          = command('ZINCRBY'),
+    zincrby          = command('ZINCRBY', {
+        response = function(reply, command, ...)
+            return tonumber(reply)
+        end,
+    }),
     zrem             = command('ZREM'),
     zrange           = command('ZRANGE', {
         request  = zset_range_request,
