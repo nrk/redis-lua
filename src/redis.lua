@@ -142,7 +142,7 @@ local function zset_range_reply(reply, command, ...)
     if opts and (opts.withscores or string.lower(tostring(opts)) == 'withscores') then
         local new_reply = { }
         for i = 1, #reply, 2 do
-            table.insert(new_reply, { reply[i], reply[i + 1] })
+            table.insert(new_reply, { reply[i], tonumber(reply[i + 1]) })
         end
         return new_reply
     else
@@ -954,7 +954,11 @@ redis.commands = {
     }),
     zcount           = command('ZCOUNT'),
     zcard            = command('ZCARD'),
-    zscore           = command('ZSCORE'),
+    zscore           = command('ZSCORE', {
+        response = function(reply, command, ...)
+            return tonumber(reply)
+        end,
+    }),
     zremrangebyscore = command('ZREMRANGEBYSCORE'),
     zrank            = command('ZRANK'),                -- >= 2.0
     zrevrank         = command('ZREVRANK'),             -- >= 2.0
