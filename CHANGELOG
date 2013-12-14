@@ -1,5 +1,5 @@
 v2.0.5 (2013-xx-xx)
-  * New commands added: `BITOP`, `BITCOUNT`.
+  * New commands added: `BITOP`, `BITCOUNT`, `SCAN`, `SSCAN`, `ZSCAN`, `HSCAN`.
 
   * Added the ability to specify a socket timeout in the connection parameters.
 
