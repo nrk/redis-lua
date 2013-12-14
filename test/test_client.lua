@@ -276,6 +276,11 @@ context("Client features", function()
         assert_equal(client:raw_command({ 'GET', 'foo' }), 'bar')
     end)
 
+    test("Tansform nil command arguments into empty strings", function()
+        assert_true(client:set(nil, 'bar'))
+        assert_equal(client:get(''), 'bar')
+    end)
+
     test("Create a new unbound command object", function()
         local cmd = redis.command('doesnotexist')
         assert_nil(client.doesnotexist)

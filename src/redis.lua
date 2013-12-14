@@ -271,8 +271,8 @@ local multibulk_request = function(client, command, ...)
     buffer[2] = '$' .. #command .. "\r\n" .. command .. "\r\n"
 
     local table_insert = table.insert
-    for _, argument in pairs(args) do
-        local s_argument = tostring(argument)
+    for i = 1, argsn do
+        local s_argument = tostring(args[i] or '')
         table_insert(buffer, '$' .. #s_argument .. "\r\n" .. s_argument .. "\r\n")
     end
 
