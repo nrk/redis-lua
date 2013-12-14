@@ -1,5 +1,11 @@
-v2.0.5 (2012-xx-xx)
+v2.0.5 (2013-xx-xx)
+  * New commands added: `BITOP`, `BITCOUNT`.
+
   * Added the ability to specify a socket timeout in the connection parameters.
+
+  * Fixed returned value of `ZINCRBY` (float value instead of string).
+
+  * Fixed command serialization when command arguments contain nil values.
 
 v2.0.4 (2012-07-15)
   * The library is now fully compatible with Lua 5.2.
