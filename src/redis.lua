@@ -220,6 +220,51 @@ local function parse_info(response)
     return info
 end
 
+local function scan_request(client, command, ...)
+    local args, req, params = {...}, { }, nil
+
+    if command == 'SCAN' then
+        table.insert(req, args[1])
+        params = args[2]
+    else
+        table.insert(req, args[1])
+        table.insert(req, args[2])
+        params = args[3]
+    end
+
+    if params and params.match then
+        table.insert(req, 'MATCH')
+        table.insert(req, params.match)
+    end
+
+    if params and params.count then
+        table.insert(req, 'COUNT')
+        table.insert(req, params.count)
+    end
+
+    request.multibulk(client, command, req)
+end
+
+local zscan_response = function(reply, command, ...)
+    local original, new = reply[2], { }
+    for i = 1, #original, 2 do
+        table.insert(new, { original[i], tonumber(original[i + 1]) })
+    end
+    reply[2] = new
+
+    return reply
+end
+
+local hscan_response = function(reply, command, ...)
+    local original, new = reply[2], { }
+    for i = 1, #original, 2 do
+        new[original[i]] = original[i + 1]
+    end
+    reply[2] = new
+
+    return reply
+end
+
 local function load_methods(proto, commands)
     local client = setmetatable ({}, getmetatable(proto))
 
@@ -913,6 +958,9 @@ redis.commands = {
     sort             = command('SORT', {
         request = sort_request,
     }),
+    scan             = command('SCAN', {        -- >= 2.8
+        request = scan_request,
+    }),
 
     -- commands operating on string values
     set              = command('SET'),
@@ -988,6 +1036,9 @@ redis.commands = {
     sdiffstore       = command('SDIFFSTORE'),
     smembers         = command('SMEMBERS'),
     srandmember      = command('SRANDMEMBER'),
+    sscan            = command('SSCAN', {       -- >= 2.8
+        request = scan_request,
+    }),
 
     -- commands operating on sorted sets
     zadd             = command('ZADD'),
@@ -1026,6 +1077,10 @@ redis.commands = {
     zrank            = command('ZRANK'),                -- >= 2.0
     zrevrank         = command('ZREVRANK'),             -- >= 2.0
     zremrangebyrank  = command('ZREMRANGEBYRANK'),      -- >= 2.0
+    zscan            = command('ZSCAN', {               -- >= 2.8
+        request  = scan_request,
+        response = zscan_response,
+    }),
 
     -- commands operating on hashes
     hset             = command('HSET', {        -- >= 2.0
@@ -1065,6 +1120,10 @@ redis.commands = {
             for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
             return new_reply
         end
+    }),
+    hscan            = command('HSCAN', {       -- >= 2.8
+        request  = scan_request,
+        response = hscan_response,
     }),
 
     -- connection related commands

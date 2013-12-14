@@ -645,6 +645,26 @@ context("Redis commands", function()
             assert_false(client:persist('foo'))
             assert_false(client:persist('foobar'))
         end)
+
+        test("SCAN (client:scan)", function()
+            if version:is('<', '2.8.0') then return end
+
+            client:mset(
+                'scan:1', '1',
+                'scan:2', '2',
+                'scan:3', '3',
+                'scan:4', '4'
+            )
+
+            local cursor, keys = unpack(client:scan(0, {
+                match = 'scan:*', count = 10
+            }))
+
+            assert_type(cursor, 'string')
+            assert_type(keys, 'table')
+
+            assert_table_values(keys, {'scan:1','scan:2','scan:3','scan:4'})
+        end)
     end)
 
     context("Commands operating on the key space - SORT", function()
@@ -1587,6 +1607,25 @@ context("Redis commands", function()
                 client:srandmember('foo')
             end)
         end)
+
+        test("SSCAN (client:sscan)", function()
+            if version:is('<', '2.8.0') then return end
+
+            local args = { 'member:1st', 'member:2nd', 'member:3rd', 'member:4th' }
+            client:sadd('key:set', unpack(args))
+
+            local cursor, members = unpack(client:sscan('key:set', 0))
+            assert_type(cursor, 'string')
+            assert_type(members, 'table')
+            assert_table_values(members, args)
+
+            local cursor, members = unpack(client:sscan('key:set', 0, {
+                match = 'member:*d', count = 10
+            }))
+            assert_type(cursor, 'string')
+            assert_type(members, 'table')
+            assert_table_values(members, { 'member:2nd', 'member:3rd' })
+        end)
     end)
 
     context("Commands operating on zsets", function()
@@ -2017,6 +2056,29 @@ context("Redis commands", function()
                 client:zremrangebyrank('foo', 0, 1)
             end)
         end)
+
+        test("ZSCAN (client:zscan)", function()
+            if version:is('<', '2.8.0') then return end
+
+            client:zadd('key:zset',
+                1, 'member:1st', 2, 'member:2nd', 3, 'member:3rd', 4, 'member:4th'
+            )
+
+            local cursor, members = unpack(client:zscan('key:zset', 0))
+            assert_type(cursor, 'string')
+            assert_type(members, 'table')
+            assert_table_values(members, {
+                { 'member:1st', 1 }, { 'member:2nd', 2 },
+                { 'member:3rd', 3 }, { 'member:4th', 4 },
+            })
+
+            local cursor, members = unpack(client:zscan('key:zset', 0, {
+                match = 'member:*d', count = 10
+            }))
+            assert_type(cursor, 'string')
+            assert_type(members, 'table')
+            assert_table_values(members, { { 'member:2nd', 2 }, { 'member:3rd', 3 } })
+        end)
     end)
 
     context("Commands operating on hashes", function()
@@ -2206,6 +2268,29 @@ context("Redis commands", function()
                 client:set('foo', 'bar')
                 client:hgetall('foo')
             end)
+        end)
+
+        test("HSCAN (client:hscan)", function()
+            if version:is('<', '2.8.0') then return end
+
+            local args = {
+                ['field:1st'] = 2, ['field:2nd'] = 2,
+                ['field:3rd'] = 3, ['field:4th'] = 4,
+            }
+
+            client:hmset('key:hash', args)
+
+            local cursor, kvs = unpack(client:hscan('key:hash', 0))
+            assert_type(cursor, 'string')
+            assert_type(kvs, 'table')
+            assert_true(table.compare(kvs, args))
+
+            local cursor, kvs = unpack(client:hscan('key:hash', 0, {
+                match = 'field:*d', count = 10
+            }))
+            assert_type(cursor, 'string')
+            assert_type(kvs, 'table')
+            assert_table_values(kvs, { ['field:2nd'] = 2, ['field:3rd'] = 3 })
         end)
     end)
 
