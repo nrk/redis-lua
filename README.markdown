@@ -1,5 +1,7 @@
 # redis-lua #
 
+[![Build Status](https://travis-ci.org/nrk/redis-lua.png?branch=master)](https://travis-ci.org/nrk/redis-lua)
+
 ## About ##
 
 redis-lua is a pure Lua client library for the Redis advanced key-value database.
