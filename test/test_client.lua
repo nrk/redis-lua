@@ -9,7 +9,7 @@ local redis = require "redis"
 
 local settings = {
     host     = '127.0.0.1',
-    port     = 6379,
+    port     = os.getenv("REDIS_PORT") or 6379,
     database = 14,
     password = nil,
 }
@@ -169,7 +169,8 @@ local utils = {
         return values
     end,
     sleep = function(sec)
-        socket.select(nil, nil, sec)
+        local select = require('socket').select
+        select(nil, nil, sec)
     end,
 }
 

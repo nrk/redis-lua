@@ -1,0 +1,45 @@
+language: erlang
+
+env:
+  global:
+    - LUAROCKS_BASE=luarocks-2.1.1
+  matrix:
+    - LUA=lua5.1 LUA_DEV=liblua5.1-dev LUA_VER=5.1 LUA_SFX=5.1 LUA_INCDIR=/usr/include/lua5.1 REDIS=2.4 REDIS_PORT=26379
+    - LUA=lua5.1 LUA_DEV=liblua5.1-dev LUA_VER=5.1 LUA_SFX=5.1 LUA_INCDIR=/usr/include/lua5.1 REDIS=2.6 REDIS_PORT=26379
+    - LUA=lua5.1 LUA_DEV=liblua5.1-dev LUA_VER=5.1 LUA_SFX=5.1 LUA_INCDIR=/usr/include/lua5.1 REDIS=2.8 REDIS_PORT=6379
+    - LUA=lua5.2 LUA_DEV=liblua5.2-dev LUA_VER=5.2 LUA_SFX=5.2 LUA_INCDIR=/usr/include/lua5.2 REDIS=2.4 REDIS_PORT=26379
+    - LUA=lua5.2 LUA_DEV=liblua5.2-dev LUA_VER=5.2 LUA_SFX=5.2 LUA_INCDIR=/usr/include/lua5.2 REDIS=2.6 REDIS_PORT=26379
+    - LUA=lua5.2 LUA_DEV=liblua5.2-dev LUA_VER=5.2 LUA_SFX=5.2 LUA_INCDIR=/usr/include/lua5.2 REDIS=2.8 REDIS_PORT=6379
+    #- LUA=luajit LUA_DEV=libluajit-5.1-dev LUA_VER=5.1 LUA_SFX=jit LUA_INCDIR=/usr/include/luajit-2.0
+
+services:
+  - redis-server
+
+before_install:
+  - env
+  - if [ $REDIS = "2.4" ]; then
+      travis/install_and_launch_redis_24.sh;
+    fi
+  - if [ $REDIS = "2.6" ]; then
+      travis/install_and_launch_redis_26.sh;
+    fi
+  - echo $REDIS_PORT
+  - sudo apt-get install $LUA
+  - sudo apt-get install $LUA_DEV
+  - lua$LUA_SFX -v
+  # Install a recent luarocks release
+  - wget http://luarocks.org/releases/$LUAROCKS_BASE.tar.gz
+  - tar zxvpf $LUAROCKS_BASE.tar.gz
+  - cd $LUAROCKS_BASE
+  - ./configure
+    --lua-version=$LUA_VER --lua-suffix=$LUA_SFX --with-lua-include="$LUA_INCDIR"
+  - make build && sudo make install
+  - sudo luarocks install telescope
+  
+install:
+  # Now install luasocket, to avoid having to also install LuaSec
+  - sudo luarocks install luasocket
+
+script:
+  - cd $TRAVIS_BUILD_DIR/test
+  - tsc -f test_client.lua
