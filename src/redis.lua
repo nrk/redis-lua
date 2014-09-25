@@ -334,10 +334,10 @@ function response.read(client)
         local number = tonumber(data)
 
         if not number then
-            if res == 'nil' then
+            if data == 'nil' then
                 return nil
             end
-            client.error('cannot parse '..res..' as a numeric response.')
+            client.error('cannot parse ' .. data .. ' as a numeric response.')
         end
 
         return number
