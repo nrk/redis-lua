@@ -731,7 +731,7 @@ do
         end
 
         if not options.watch then
-            watch_keys = { }
+            local watch_keys = { }
             for i, v in pairs(options) do
                 if tonumber(i) then
                     table.insert(watch_keys, v)
