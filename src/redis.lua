@@ -347,10 +347,10 @@ local response_reader = function(client)
         local number = tonumber(data)
 
         if not number then
-            if res == 'nil' then
+            if data == 'nil' then
                 return nil
             end
-            client.error('cannot parse '..res..' as a numeric response.')
+            client.error('cannot parse '..data..' as a numeric response.')
         end
 
         return number
@@ -680,7 +680,7 @@ do
         end
 
         if not options.watch then
-            watch_keys = { }
+            local watch_keys = { }
             for i, v in pairs(options) do
                 if tonumber(i) then
                     table.insert(watch_keys, v)
