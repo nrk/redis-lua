@@ -17,6 +17,7 @@ local defaults = {
     port        = 6379,
     tcp_nodelay = true,
     path        = nil,
+    coroutine   = coroutine,
 }
 
 local function merge_defaults(parameters)
@@ -282,17 +283,18 @@ local function load_methods(proto, commands)
     return client
 end
 
-local function create_client(proto, client_socket, commands)
+local function create_client(proto, parameters, commands)
     local client = load_methods(proto, commands)
     client.error = redis.error
     client.network = {
-        socket = client_socket,
+        socket = parameters.socket,
         read   = network.read,
         write  = network.write,
     }
     client.requests = {
         multibulk = request.multibulk,
     }
+    client.coroutine = parameters.coroutine
     return client
 end
 
@@ -571,7 +573,7 @@ do
             end
         end
 
-        return coroutine.wrap(function()
+        return client.coroutine.wrap(function()
             while true do
                 local message
                 local response = response.read(client)
@@ -601,7 +603,7 @@ do
                 if aborting and subscriptions == 0 then
                     break
                 end
-                coroutine.yield(message, abort)
+                client.coroutine.yield(message, abort)
             end
         end)
     end
@@ -627,7 +629,7 @@ do
 
     local function initialize_transaction(client, options, block, queued_parsers)
         local table_insert = table.insert
-        local coro = coroutine.create(block)
+        local coro = client.coroutine.create(block)
 
         if options.watch then
             local watch_keys = {}
@@ -644,13 +646,13 @@ do
             client.error('cannot use EXEC inside a transaction block')
         end
         transaction_client.multi = function(...)
-            coroutine.yield()
+            client.coroutine.yield()
         end
         transaction_client.commands_queued = function()
             return #queued_parsers
         end
 
-        assert(coroutine.resume(coro, transaction_client))
+        assert(client.coroutine.resume(coro, transaction_client))
 
         transaction_client.multi = nil
         transaction_client.discard = function(...)
@@ -690,8 +692,8 @@ do
         local coro = initialize_transaction(client, options, coroutine_block, queued_parsers)
 
         local success, retval
-        if coroutine.status(coro) == 'suspended' then
-            success, retval = coroutine.resume(coro)
+        if client.coroutine.status(coro) == 'suspended' then
+            success, retval = client.coroutine.resume(coro)
         else
             -- do not fail if the coroutine has not been resumed (missing t:multi() with CAS)
             success, retval = true, 'empty transaction'
@@ -768,7 +770,7 @@ do
             monitoring = false
         end
 
-        return coroutine.wrap(function()
+        return client.coroutine.wrap(function()
             client:monitor()
 
             while monitoring do
@@ -790,7 +792,7 @@ do
                     client.error('Unable to match MONITOR payload: '..response)
                 end
 
-                coroutine.yield(message, abort)
+                client.coroutine.yield(message, abort)
             end
         end)
     end
@@ -884,8 +886,9 @@ function redis.connect(...)
         redis.error('invalid type for the commands table')
     end
 
-    local socket = create_connection(merge_defaults(parameters))
-    local client = create_client(client_prototype, socket, commands)
+    parameters = merge_defaults(parameters)
+    parameters.socket = create_connection(parameters)
+    local client = create_client(client_prototype, parameters, commands)
 
     return client
 end
