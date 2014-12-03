@@ -2,7 +2,7 @@ package = "redis-lua"
 version = "scm-1"
 
 source = {
-   url = "git://github.com/saucisson/redis-lua.git"
+   url = "git://github.com/CosyVerif/redis-lua.git"
 }
 
 description = {
