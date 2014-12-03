@@ -254,6 +254,16 @@ context("Client initialization", function()
         assert_true(client:ping())
     end)
 
+    test("Can use an alternative coroutine implementation", function()
+        local connection = require('socket').tcp()
+        connection:connect(settings.host, settings.port)
+        local coroutine = "alternative"
+
+        local client = redis.connect({ socket = connection, coroutine = coroutine })
+        assert_type(client, 'table')
+        assert_true(client.coroutine == coroutine)
+    end)
+
     test("Can specify a timeout for connecting", function()
         local time, timeout = os.time(), 2;
 
