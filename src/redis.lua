@@ -462,7 +462,7 @@ client_prototype.pipeline = function(client, block)
             end
             return function(self, ...)
                 local reply = cmd(client, ...)
-                table_insert(parsers, #requests, reply.parser)
+                parsers[#requests] = reply.parser
                 return reply
             end
         end
@@ -480,7 +480,7 @@ client_prototype.pipeline = function(client, block)
         if parser then
             reply = parser(reply)
         end
-        table_insert(replies, i, reply)
+        replies[i] = reply
     end
 
     return replies, #requests
@@ -661,9 +661,8 @@ do
             end
         end
 
-        local table_insert = table.insert
         for i, parser in pairs(queued_parsers) do
-            table_insert(replies, i, parser(raw_replies[i]))
+            replies[i] = parser(raw_replies[i])
         end
 
         return replies, #queued_parsers
