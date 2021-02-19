@@ -1081,6 +1081,10 @@ redis.commands = {
         request  = scan_request,
         response = zscan_response,
     }),
+    zpopmax         = command('ZPOPMAX'),               -- >= 5.0
+    zpopmin         = command('ZPOPMIN'),               -- >= 5.0
+    bzpopmax         = command('BZPOPMAX'),             -- >= 5.0
+    bzpopmix         = command('BZPOPMIN'),             -- >= 5.0
 
     -- commands operating on hashes
     hset             = command('HSET', {        -- >= 2.0
