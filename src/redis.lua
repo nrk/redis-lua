@@ -1016,6 +1016,7 @@ redis.commands = {
     lpushx           = command('LPUSHX'),       -- >= 2.2
     linsert          = command('LINSERT'),      -- >= 2.2
     brpoplpush       = command('BRPOPLPUSH'),   -- >= 2.2
+    lpos             = command('LPOS'),         -- >= 6.0.6
 
     -- commands operating on sets
     sadd             = command('SADD'),
