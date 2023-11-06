@@ -1,4 +1,4 @@
-v2.0.5 (2013-xx-xx)
+v2.0.5 (2023-xx-xx)
   * New commands added: `BITOP`, `BITCOUNT`, `SCAN`, `SSCAN`, `ZSCAN`, `HSCAN`.
 
   * Added the ability to specify a socket timeout in the connection parameters.
@@ -6,6 +6,8 @@ v2.0.5 (2013-xx-xx)
   * Fixed returned value of `ZINCRBY` (float value instead of string).
 
   * Fixed command serialization when command arguments contain nil values.
+
+  * Added the possibility to connect to a redis server with TLS enabled.
 
 v2.0.4 (2012-07-15)
   * The library is now fully compatible with Lua 5.2.
