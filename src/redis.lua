@@ -842,7 +842,23 @@ local function create_connection(parameters)
         perform_connection, socket = connect_tcp, require('socket').tcp
     end
 
-    return perform_connection(socket(), parameters)
+    local conn = perform_connection(socket(), parameters)
+
+    if parameters.tls then
+        local ssl = require("ssl")
+        local params = {
+            mode = parameters.mode or "client",
+            protocol = parameters.protocol or "any",
+            key = parameters.key,
+            certificate = parameters.certificate,
+            cafile = parameters.cafile,
+            verify = parameters.verify or "peer",
+            options = parameters.options or "all",
+        }
+        conn = ssl.wrap(conn, params)
+        conn:dohandshake()
+    end
+    return conn
 end
 
 -- ############################################################################
